@@ -220,13 +220,15 @@ jobs:
         run: |
           set -euo pipefail
 
+          health_url="http://$VPS_HOST:$BACKEND_PORT/api/health"
+
           for attempt in {1..12}; do
-            if curl --fail --silent "http://$VPS_HOST:$BACKEND_PORT/health" >/dev/null; then
+            if curl --fail --silent "$health_url" >/dev/null; then
               exit 0
             fi
 
             sleep 10
           done
 
-          echo "::error::Main deployment backend health check failed."
+          echo "::error::Main deployment backend health check failed: $health_url"
           exit 1
