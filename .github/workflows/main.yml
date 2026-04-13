@@ -173,7 +173,23 @@ jobs:
           sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@"$VPS_HOST" <<EOF
           set -euo pipefail
 
+          export DEBIAN_FRONTEND=noninteractive
           APP_DIR="/opt/najiz-editor/pr-staging"
+
+          if ! command -v docker >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y docker.io docker-compose-v2 || apt-get install -y docker.io docker-compose-plugin
+            systemctl enable --now docker
+          fi
+
+          if docker compose version >/dev/null 2>&1; then
+            COMPOSE_CMD="docker compose"
+          elif command -v docker-compose >/dev/null 2>&1; then
+            COMPOSE_CMD="docker-compose"
+          else
+            echo "Docker Compose is not available on the VPS."
+            exit 1
+          fi
 
           mkdir -p "\$APP_DIR"
           rm -rf "\$APP_DIR/app"
@@ -182,9 +198,9 @@ jobs:
           cp "$REMOTE_ENV" "\$APP_DIR/app/.env"
 
           cd "\$APP_DIR/app"
-          docker compose down --remove-orphans || true
-          docker compose up -d --build
-          docker compose ps
+          \$COMPOSE_CMD down --remove-orphans || true
+          \$COMPOSE_CMD up -d --build
+          \$COMPOSE_CMD ps
 
           rm -f "$REMOTE_RELEASE" "$REMOTE_ENV"
           EOF
