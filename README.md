@@ -86,15 +86,15 @@ npm install
 npm run test:e2e
 ```
 
-## PR Staging Workflow
+## GitHub Actions
 
-GitHub Actions now supports a shared staging deploy for pull requests targeting `main`.
-
-- Every non-draft PR to `main` runs backend `pytest` and frontend Playwright checks.
-- If those checks pass and the PR branch lives in this repository, Actions deploys the branch to a single staging stack on the VPS.
-- The staging deploy expects these repository secrets:
+- Every pull request to `main` runs backend `pytest` and frontend Playwright checks.
+- Every push to `main` runs the same checks and then deploys the merged `main` branch to the VPS.
+- The main deploy expects these repository secrets:
   - `VPS_HOST`
   - `VPS_PASSWORD`
-  - `STAGING_ENV_FILE`
+  - `DEPLOY_ENV_FILE` or the legacy `STAGING_ENV_FILE`
 
-Use [deploy/staging.env.example](deploy/staging.env.example) as the template for `STAGING_ENV_FILE`, replacing `YOUR_VPS_IP` and the encryption key with real values.
+Use [deploy/staging.env.example](deploy/staging.env.example) as the template for the deploy env file, replacing `YOUR_VPS_IP` and the encryption key with real values.
+
+If the live app should deploy somewhere other than the current default directory on the VPS, set the repository variable `DEPLOY_APP_DIR`.
