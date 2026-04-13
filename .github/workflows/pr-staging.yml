@@ -1,6 +1,10 @@
 name: PR Validation and Staging Deploy
 
 on:
+  workflow_dispatch:
+  push:
+    branches-ignore:
+      - main
   pull_request:
     branches:
       - main
@@ -11,7 +15,7 @@ on:
       - ready_for_review
 
 concurrency:
-  group: pr-staging-${{ github.event.pull_request.number }}
+  group: pr-staging-${{ github.event.pull_request.number || github.ref || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -19,7 +23,7 @@ permissions:
 
 jobs:
   backend-tests:
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -53,7 +57,7 @@ jobs:
         run: pytest
 
   frontend-tests:
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -79,7 +83,7 @@ jobs:
         run: npm run test:e2e
 
   deploy-staging:
-    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
     needs:
       - backend-tests
       - frontend-tests
