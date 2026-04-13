@@ -222,13 +222,79 @@ jobs:
 
           health_url="http://$VPS_HOST:$BACKEND_PORT/api/health"
 
-          for attempt in {1..12}; do
-            if curl --fail --silent "$health_url" >/dev/null; then
+          for attempt in {1..30}; do
+            status_code="$(curl --output /dev/null --silent --show-error --write-out '%{http_code}' "$health_url" || true)"
+            if [ "$status_code" = "200" ]; then
               exit 0
             fi
 
+            echo "Attempt $attempt/30: backend health returned ${status_code:-curl_error} for $health_url"
             sleep 10
           done
 
           echo "::error::Main deployment backend health check failed: $health_url"
           exit 1
+
+      - name: Collect deployment diagnostics
+        if: ${{ failure() }}
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          DEPLOY_APP_DIR: ${{ vars.DEPLOY_APP_DIR }}
+          BACKEND_PORT: ${{ steps.prep.outputs.backend_port }}
+        run: |
+          set -euo pipefail
+
+          sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@"$VPS_HOST" <<EOF
+          set -euo pipefail
+
+          APP_DIR="${DEPLOY_APP_DIR:-/opt/najiz-editor/pr-staging}"
+
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Docker is not installed on the VPS."
+            exit 0
+          fi
+
+          if docker compose version >/dev/null 2>&1; then
+            COMPOSE_CMD="docker compose"
+          elif command -v docker-compose >/dev/null 2>&1; then
+            COMPOSE_CMD="docker-compose"
+          else
+            echo "Docker Compose is not available on the VPS."
+            exit 0
+          fi
+
+          echo "== Docker ps =="
+          docker ps -a || true
+
+          if [ ! -d "\$APP_DIR/app" ]; then
+            echo "App directory not found: \$APP_DIR/app"
+            exit 0
+          fi
+
+          cd "\$APP_DIR/app"
+
+          echo "== Compose ps =="
+          \$COMPOSE_CMD ps || true
+
+          echo "== Backend logs (tail 200) =="
+          \$COMPOSE_CMD logs --tail=200 backend || true
+
+          echo "== Frontend logs (tail 100) =="
+          \$COMPOSE_CMD logs --tail=100 frontend || true
+
+          echo "== Safe env subset =="
+          grep -E '^(APP_ENV|USE_MEMORY_STORE|APP_ALLOWED_HOSTS|BACKEND_PORT|FRONTEND_PORT|COMPOSE_PROJECT_NAME)=' .env || true
+
+          echo "== Local backend port check =="
+          ss -ltnp | grep ":$BACKEND_PORT" || true
+
+          echo "== Local health probe =="
+          local_status="\$(curl --output /tmp/najiz-health.out --silent --show-error --write-out '%{http_code}' "http://127.0.0.1:$BACKEND_PORT/api/health" || true)"
+          echo "Local health status: \${local_status:-curl_error}"
+          cat /tmp/najiz-health.out || true
+
+          if [ "\$local_status" = "200" ]; then
+            echo "Backend is healthy on the VPS. External health failure likely points to firewall rules, port exposure, or APP_ALLOWED_HOSTS not matching the public host."
+          fi
+          EOF
