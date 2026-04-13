@@ -1,21 +1,13 @@
-name: PR Validation and Staging Deploy
+name: Main Deploy
 
 on:
   workflow_dispatch:
   push:
-    branches-ignore:
-      - main
-  pull_request:
     branches:
       - main
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
 
 concurrency:
-  group: pr-staging-${{ github.event.pull_request.number || github.ref || github.run_id }}
+  group: main-deploy-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -23,7 +15,6 @@ permissions:
 
 jobs:
   backend-tests:
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -57,7 +48,6 @@ jobs:
         run: pytest
 
   frontend-tests:
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -82,8 +72,8 @@ jobs:
       - name: Run frontend tests
         run: npm run test:e2e
 
-  deploy-staging:
-    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+  deploy-main:
+    if: ${{ github.ref == 'refs/heads/main' }}
     needs:
       - backend-tests
       - frontend-tests
@@ -92,37 +82,54 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Validate staging secrets
+      - name: Validate deploy secrets
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          DEPLOY_ENV_FILE: ${{ secrets.DEPLOY_ENV_FILE }}
           STAGING_ENV_FILE: ${{ secrets.STAGING_ENV_FILE }}
         run: |
           set -euo pipefail
 
+          deploy_env_file="$DEPLOY_ENV_FILE"
+          if [ -z "$deploy_env_file" ]; then
+            deploy_env_file="$STAGING_ENV_FILE"
+          fi
+
           missing=0
-          for name in VPS_HOST VPS_PASSWORD STAGING_ENV_FILE; do
+          for name in VPS_HOST VPS_PASSWORD; do
             if [ -z "${!name}" ]; then
               echo "::error::Missing required secret: $name"
               missing=1
             fi
           done
 
+          if [ -z "$deploy_env_file" ]; then
+            echo "::error::Missing required secret: DEPLOY_ENV_FILE (or legacy STAGING_ENV_FILE)"
+            missing=1
+          fi
+
           exit "$missing"
 
-      - name: Prepare staging bundle
+      - name: Prepare deploy bundle
         id: prep
         env:
+          DEPLOY_ENV_FILE: ${{ secrets.DEPLOY_ENV_FILE }}
           STAGING_ENV_FILE: ${{ secrets.STAGING_ENV_FILE }}
         run: |
           set -euo pipefail
 
           mkdir -p .artifacts
 
-          printf '%s' "$STAGING_ENV_FILE" > .artifacts/staging.env
+          deploy_env_file="$DEPLOY_ENV_FILE"
+          if [ -z "$deploy_env_file" ]; then
+            deploy_env_file="$STAGING_ENV_FILE"
+          fi
 
-          backend_port="$(grep '^BACKEND_PORT=' .artifacts/staging.env | head -n 1 | cut -d= -f2- | tr -d '\r' || true)"
-          frontend_port="$(grep '^FRONTEND_PORT=' .artifacts/staging.env | head -n 1 | cut -d= -f2- | tr -d '\r' || true)"
+          printf '%s' "$deploy_env_file" > .artifacts/deploy.env
+
+          backend_port="$(grep '^BACKEND_PORT=' .artifacts/deploy.env | head -n 1 | cut -d= -f2- | tr -d '\r' || true)"
+          frontend_port="$(grep '^FRONTEND_PORT=' .artifacts/deploy.env | head -n 1 | cut -d= -f2- | tr -d '\r' || true)"
 
           if [ -z "$backend_port" ]; then
             backend_port="8000"
@@ -149,24 +156,25 @@ jobs:
       - name: Install SSH client tools
         run: sudo apt-get update && sudo apt-get install -y sshpass
 
-      - name: Upload staging files
+      - name: Upload deploy files
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
-          REMOTE_RELEASE: /tmp/najiz-pr-staging-${{ github.run_id }}.tgz
-          REMOTE_ENV: /tmp/najiz-pr-staging-${{ github.run_id }}.env
+          REMOTE_RELEASE: /tmp/najiz-main-deploy-${{ github.run_id }}.tgz
+          REMOTE_ENV: /tmp/najiz-main-deploy-${{ github.run_id }}.env
         run: |
           set -euo pipefail
 
           sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null .artifacts/release.tgz root@"$VPS_HOST":"$REMOTE_RELEASE"
-          sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null .artifacts/staging.env root@"$VPS_HOST":"$REMOTE_ENV"
+          sshpass -p "$VPS_PASSWORD" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null .artifacts/deploy.env root@"$VPS_HOST":"$REMOTE_ENV"
 
-      - name: Deploy staging stack
+      - name: Deploy main stack
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
-          REMOTE_RELEASE: /tmp/najiz-pr-staging-${{ github.run_id }}.tgz
-          REMOTE_ENV: /tmp/najiz-pr-staging-${{ github.run_id }}.env
+          DEPLOY_APP_DIR: ${{ vars.DEPLOY_APP_DIR }}
+          REMOTE_RELEASE: /tmp/najiz-main-deploy-${{ github.run_id }}.tgz
+          REMOTE_ENV: /tmp/najiz-main-deploy-${{ github.run_id }}.env
         run: |
           set -euo pipefail
 
@@ -174,7 +182,7 @@ jobs:
           set -euo pipefail
 
           export DEBIAN_FRONTEND=noninteractive
-          APP_DIR="/opt/najiz-editor/pr-staging"
+          APP_DIR="${DEPLOY_APP_DIR:-/opt/najiz-editor/pr-staging}"
 
           if ! command -v docker >/dev/null 2>&1; then
             apt-get update
@@ -220,5 +228,5 @@ jobs:
             sleep 10
           done
 
-          echo "::error::Staging backend health check failed."
+          echo "::error::Main deployment backend health check failed."
           exit 1
