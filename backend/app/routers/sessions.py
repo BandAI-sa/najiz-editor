@@ -1,0 +1,54 @@
+from fastapi import APIRouter, Request
+
+from app.core.exceptions import NajizError, SessionNotFoundError
+from app.models.api import CreateSessionResponse, SessionResponse, UpdateClassificationRequest
+from app.models.session import Session, SessionStatus
+from app.routers.deps import build_dependencies
+
+
+router = APIRouter(tags=["sessions"])
+
+
+@router.post("/", response_model=CreateSessionResponse)
+async def create_session(request: Request) -> CreateSessionResponse:
+    deps = build_dependencies(request)
+    session = Session()
+    await deps["session_repo"].create(session)
+    return CreateSessionResponse(session=session)
+
+
+@router.get("/{session_id}", response_model=SessionResponse)
+async def get_session(session_id: str, request: Request) -> SessionResponse:
+    deps = build_dependencies(request)
+    session = await deps["session_repo"].get_by_id(session_id)
+    if session is None:
+        raise SessionNotFoundError(session_id)
+    return SessionResponse(session=session)
+
+
+@router.patch("/{session_id}/classification", response_model=SessionResponse)
+async def update_classification(
+    session_id: str,
+    payload: UpdateClassificationRequest,
+    request: Request,
+) -> SessionResponse:
+    deps = build_dependencies(request)
+    session = await deps["session_repo"].get_by_id(session_id)
+    if session is None:
+        raise SessionNotFoundError(session_id)
+
+    selection = await deps["classification_repo"].resolve_selection(payload.case_id)
+    if selection is None or selection.main_id != payload.main_id or selection.sub_id != payload.sub_id:
+        raise NajizError(
+            code="invalid_classification",
+            message="التصنيف المحدد غير صالح.",
+            status_code=422,
+            recoverable=True,
+        )
+
+    session.classification = selection
+    session.status = SessionStatus.INTERVIEW
+    interview_result = await deps["interviewer"].start(session)
+    session.metadata["pending_prompt"] = interview_result.reply
+    await deps["session_repo"].save(session)
+    return SessionResponse(session=session)

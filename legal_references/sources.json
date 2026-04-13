@@ -1,0 +1,32 @@
+{
+  "sources": [
+    {
+      "source_id": "saudi-pleadings-law",
+      "title": "نظام المرافعات الشرعية السعودي",
+      "kind": "statute",
+      "jurisdiction": "SA",
+      "verified_entries": []
+    },
+    {
+      "source_id": "saudi-personal-status-law",
+      "title": "نظام الأحوال الشخصية السعودي",
+      "kind": "statute",
+      "jurisdiction": "SA",
+      "verified_entries": []
+    },
+    {
+      "source_id": "saudi-civil-status-law",
+      "title": "نظام الأحوال المدنية",
+      "kind": "statute",
+      "jurisdiction": "SA",
+      "verified_entries": []
+    },
+    {
+      "source_id": "minor-assets-guardianship-law",
+      "title": "نظام الولاية على أموال القاصرين",
+      "kind": "statute",
+      "jurisdiction": "SA",
+      "verified_entries": []
+    }
+  ]
+}

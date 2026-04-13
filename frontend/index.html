@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self' http://localhost:8000 http://127.0.0.1:8000;"
+    />
+    <title>الوكيل القانوني الذكي لناجز</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./css/styles.css" />
+  </head>
+  <body>
+    <div class="page-backdrop" aria-hidden="true"></div>
+    <div class="page-grid" dir="rtl">
+      <aside class="sidebar" dir="rtl">
+        <section class="hero-card">
+          <p class="eyebrow">Najiz Legal Agent v1.0</p>
+          <h1>وكيل قانوني ذكي لبناء صحيفة الدعوى خطوة بخطوة</h1>
+          <p class="hero-copy">
+            يبدأ بتصنيف نوع الدعوى، ثم يجمع الحقول المطلوبة، ثم يصوغ الصحيفة ويعرض مراجعة قانونية قابلة للإصلاح والتصدير.
+          </p>
+          <div class="hero-badges">
+            <span>تصنيف ذكي + يدوي</span>
+            <span>صياغة متدرجة</span>
+            <span>تدقيق ومراجعة</span>
+          </div>
+        </section>
+
+        <section class="panel" id="manual-classification-panel">
+          <div class="panel-head">
+            <h2>التصنيف اليدوي</h2>
+            <p>يمكنك تجاوز الاقتراحات واختيار التصنيف مباشرة.</p>
+          </div>
+          <label class="field-label" for="main-select">التصنيف الرئيسي</label>
+          <select id="main-select" class="select-field"></select>
+          <label class="field-label" for="sub-select">التصنيف الفرعي</label>
+          <select id="sub-select" class="select-field" disabled></select>
+          <label class="field-label" for="case-select">نوع الدعوى</label>
+          <select id="case-select" class="select-field" disabled></select>
+          <button id="manual-select-btn" class="btn btn-secondary" disabled>اعتماد التصنيف المحدد</button>
+        </section>
+
+        <section class="panel" id="progress-panel">
+          <div class="panel-head">
+            <h2>تقدم الاستجواب</h2>
+            <p id="progress-label">ابدأ بذكر الوقائع الأساسية.</p>
+          </div>
+          <div class="progress-track" aria-hidden="true">
+            <div id="progress-bar" class="progress-fill"></div>
+          </div>
+          <div class="progress-meta">
+            <strong id="progress-value">0%</strong>
+            <span id="missing-fields-count">0 حقول متبقية</span>
+          </div>
+          <div id="extracted-fields" class="chips-wrap"></div>
+          <div id="guard-alerts" class="alerts-wrap"></div>
+        </section>
+      </aside>
+
+      <main class="main-shell" dir="rtl">
+        <section class="chat-panel panel">
+          <div class="panel-head panel-head-inline">
+            <div>
+              <p class="eyebrow">المرحلة الحالية</p>
+              <h2 id="phase-title">مرحلة التصنيف</h2>
+            </div>
+            <button id="new-session-btn" class="btn btn-ghost">جلسة جديدة</button>
+          </div>
+
+          <div id="suggestions-panel" class="suggestions-grid"></div>
+
+          <div id="messages" class="messages-list" aria-live="polite"></div>
+
+          <form id="message-form" class="composer" autocomplete="off">
+            <label class="sr-only" for="message-input">رسالة المستخدم</label>
+            <textarea
+              id="message-input"
+              class="composer-input"
+              placeholder="اكتب الوقائع أو أجب عن سؤال الوكيل..."
+              rows="4"
+            ></textarea>
+            <div class="composer-actions">
+              <button id="draft-btn" type="button" class="btn btn-secondary" disabled>بدء الصياغة</button>
+              <button id="send-btn" type="submit" class="btn btn-primary">إرسال</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="phase2-panel" class="panel hidden">
+          <div class="panel-head panel-head-inline">
+            <div>
+              <p class="eyebrow">المرحلة الثانية</p>
+              <h2>مسودة الصحيفة</h2>
+            </div>
+            <div class="petition-actions">
+              <span id="petition-status" class="petition-status">لم تبدأ الصياغة بعد</span>
+              <button id="edit-petition-btn" class="btn btn-secondary" disabled>تعديل الاختيار</button>
+              <button id="save-petition-btn" class="btn btn-secondary" disabled>حفظ</button>
+              <button id="review-btn" class="btn btn-primary" disabled>مراجعة قانونية شاملة</button>
+            </div>
+          </div>
+
+          <div class="petition-tabs" role="tablist" aria-label="تبويبات الصحيفة">
+            <button class="tab-btn active" data-tab="facts">الوقائع</button>
+            <button class="tab-btn" data-tab="evidence">الأسانيد</button>
+            <button class="tab-btn" data-tab="requests">الطلبات</button>
+          </div>
+
+          <div id="petition-content" class="petition-content"></div>
+        </section>
+
+        <section id="phase3-panel" class="panel hidden">
+          <div class="panel-head panel-head-inline">
+            <div>
+              <p class="eyebrow">المرحلة الثالثة</p>
+              <h2>تقرير المراجعة القانونية</h2>
+            </div>
+            <div class="export-actions">
+              <button id="export-md-btn" class="btn btn-secondary" disabled>تصدير Markdown</button>
+              <button id="export-pdf-btn" class="btn btn-primary" disabled>تصدير PDF</button>
+            </div>
+          </div>
+
+          <div class="review-summary">
+            <div class="score-circle" id="review-score-circle">
+              <span id="score-number">—</span>
+              <small>درجة الاكتمال</small>
+            </div>
+            <div class="review-text">
+              <strong id="review-recommendation">لم يبدأ التقييم بعد</strong>
+              <p id="review-summary-text">سيظهر هنا ملخص المراجعة بعد تشغيلها.</p>
+            </div>
+          </div>
+
+          <div id="review-issues-list" class="review-issues"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>
