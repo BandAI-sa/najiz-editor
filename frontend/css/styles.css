@@ -90,7 +90,9 @@ body {
   z-index: 6;
   display: grid;
   place-items: center;
+  align-content: start;
   padding: 20px;
+  overflow-y: auto;
   background:
     linear-gradient(180deg, rgba(16, 26, 28, 0.36), rgba(16, 26, 28, 0.48)),
     radial-gradient(circle at top, rgba(201, 113, 43, 0.14), transparent 34%);
@@ -99,23 +101,29 @@ body {
 
 .llm-config-dialog {
   width: min(680px, 100%);
+  max-height: calc(100svh - 40px);
   padding: 28px;
+  display: grid;
+  gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   background: linear-gradient(180deg, rgba(255, 250, 241, 0.98), rgba(244, 250, 248, 0.96));
   animation: rise-in 260ms ease;
 }
 
 .llm-config-copy,
 .llm-config-hint {
-  margin: 12px 0 0;
+  margin: 0;
   color: var(--color-muted);
   line-height: 1.9;
 }
 
 .llm-provider-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
-  margin-top: 18px;
+  margin-top: 2px;
 }
 
 .llm-provider-card {
@@ -167,9 +175,9 @@ body {
 
 .llm-model-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
   gap: 12px;
-  margin-top: 14px;
+  margin-top: 4px;
 }
 
 .llm-model-card {
@@ -239,7 +247,12 @@ body {
   display: flex;
   justify-content: flex-start;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 6px;
+  position: sticky;
+  bottom: -28px;
+  padding-top: 12px;
+  padding-bottom: 2px;
+  background: linear-gradient(180deg, rgba(255, 250, 241, 0), rgba(255, 250, 241, 0.96) 26%);
 }
 
 .page-grid {
@@ -901,6 +914,17 @@ body {
   }
 
   .llm-config-dialog {
-    padding: 22px 18px;
+    max-height: calc(100svh - 16px);
+    padding: 20px 16px 16px;
+    border-radius: 20px;
+  }
+
+  .llm-provider-grid,
+  .llm-model-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .llm-config-overlay {
+    padding: 8px;
   }
 }
