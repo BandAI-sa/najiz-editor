@@ -1,6 +1,18 @@
 import { agentAPI, classificationsAPI, sessionsAPI } from "../api.js";
 import { getState, pushChatMessage, updateState } from "../state.js";
 
+function buildLoadingMessage(state) {
+  if (state.currentPhase === 1 && state.currentStep === "welcome") {
+    return "يجري تحليل الوقائع واستخراج أقرب تصنيف مناسب...";
+  }
+
+  if (state.currentPhase === 1) {
+    return "يجري تحليل إجابتك وتجهيز الرد التالي...";
+  }
+
+  return "يجري تجهيز الرد الآن...";
+}
+
 function applyAgentResponse(response) {
   updateState((draft) => {
     draft.sessionId = response.session_id;
@@ -35,9 +47,30 @@ export function createPhase1Controller() {
 
     async sendMessage(message) {
       const state = getState();
+      if (state.loading) {
+        return;
+      }
+
       pushChatMessage("user", message);
-      const response = await agentAPI.message(state.sessionId, message, state.currentPhase);
-      applyAgentResponse(response);
+      updateState((draft) => {
+        draft.loading = true;
+        draft.loadingMessage = buildLoadingMessage(state);
+      });
+
+      try {
+        const response = await agentAPI.message(state.sessionId, message, state.currentPhase);
+        applyAgentResponse(response);
+      } catch (error) {
+        pushChatMessage(
+          "assistant",
+          error instanceof Error ? error.message : "تعذر إتمام الطلب حاليًا. حاول مرة أخرى."
+        );
+      } finally {
+        updateState((draft) => {
+          draft.loading = false;
+          draft.loadingMessage = "";
+        });
+      }
     },
 
     async onMainChange(mainId) {

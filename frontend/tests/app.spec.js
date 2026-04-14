@@ -196,6 +196,7 @@ function mockApi(page) {
 
     if (pathname.endsWith("/api/agent/message") && method === "POST") {
       messageCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, 200));
       if (messageCount === 1) {
         return route.fulfill({
           status: 200,
@@ -466,7 +467,11 @@ test("renders RTL flow from classification to review and export", async ({ page 
 
   await page.locator("#message-input").fill("أريد رفع دعوى على تركة متنازع عليها.");
   await page.locator("#send-btn").click();
+  await expect(page.locator("#send-btn")).toBeDisabled();
+  await expect(page.locator(".message-card.pending")).toBeVisible();
+  await expect(page.locator(".message-card.pending")).toContainText("يجري تحليل الوقائع");
   await expect(page.locator(".suggestion-card")).toContainText("إقامة حارس قضائي");
+  await expect(page.locator("#send-btn")).toBeEnabled();
 
   await page.locator(".suggestion-card .btn").click();
   await expect(page.locator("#progress-label")).toContainText("ما بيانات المدعي");

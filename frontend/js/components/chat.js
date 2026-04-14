@@ -23,9 +23,43 @@ function buildMessageCard(message) {
   return wrapper;
 }
 
-export function createChatComponent({ container, form, input, onSubmit }) {
+function buildPendingCard(message) {
+  const wrapper = document.createElement("article");
+  wrapper.className = "message-card assistant pending";
+  wrapper.setAttribute("aria-live", "polite");
+
+  const meta = document.createElement("div");
+  meta.className = "message-meta";
+
+  const role = document.createElement("strong");
+  role.textContent = "الوكيل";
+
+  const status = document.createElement("span");
+  status.textContent = "قيد المعالجة";
+
+  meta.append(role, status);
+
+  const content = document.createElement("div");
+  content.className = "pending-message";
+
+  const spinner = document.createElement("span");
+  spinner.className = "pending-spinner";
+  spinner.setAttribute("aria-hidden", "true");
+
+  const text = document.createElement("span");
+  text.textContent = message;
+
+  content.append(spinner, text);
+  wrapper.append(meta, content);
+  return wrapper;
+}
+
+export function createChatComponent({ container, form, input, submitButton, onSubmit }) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (submitButton?.disabled) {
+      return;
+    }
     const value = input.value.trim();
     if (!value) {
       return;
@@ -40,6 +74,14 @@ export function createChatComponent({ container, form, input, onSubmit }) {
       state.chat.forEach((message) => {
         container.appendChild(buildMessageCard(message));
       });
+      if (state.loading && state.loadingMessage) {
+        container.appendChild(buildPendingCard(state.loadingMessage));
+      }
+      form.setAttribute("aria-busy", state.loading ? "true" : "false");
+      input.disabled = state.loading;
+      if (submitButton) {
+        submitButton.disabled = state.loading;
+      }
       container.scrollTop = container.scrollHeight;
     },
   };
