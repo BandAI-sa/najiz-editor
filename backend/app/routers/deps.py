@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from typing import cast
+
 from fastapi import Request
 
+from app.core.config import SUPPORTED_LLM_PROVIDERS, LLMProviderName
 from app.core.security import EncryptionService
 from app.repositories.classification_repository import ClassificationRepository
 from app.repositories.message_repository import MessageRepository
@@ -17,8 +20,39 @@ from app.services.agent.phase3_reviewer import Phase3ReviewerService
 from app.services.llm.factory import build_llm_client
 
 
-def build_dependencies(request: Request):
+LLM_PROVIDER_HEADER = "X-LLM-Provider"
+LLM_MODEL_HEADER = "X-LLM-Model"
+
+
+def _resolve_llm_settings(request: Request):
     settings = request.app.state.settings
+    provider_value = (
+        request.headers.get(LLM_PROVIDER_HEADER)
+        or request.query_params.get("llm_provider")
+        or settings.llm_provider
+    )
+    requested_provider = provider_value.strip().lower()
+    if requested_provider not in SUPPORTED_LLM_PROVIDERS:
+        return settings
+
+    provider = cast(LLMProviderName, requested_provider)
+    if not settings.is_provider_available(provider):
+        return settings
+
+    requested_model = (
+        request.headers.get(LLM_MODEL_HEADER)
+        or request.query_params.get("llm_model")
+        or settings.default_model_for_provider(provider)
+    ).strip()
+
+    if not requested_model:
+        return settings
+
+    return settings.with_llm_selection(provider, requested_model)
+
+
+def build_dependencies(request: Request):
+    settings = _resolve_llm_settings(request)
     manager = request.app.state.mongo_manager
     catalog = request.app.state.catalog
     legal_store = request.app.state.legal_store

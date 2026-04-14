@@ -12,6 +12,18 @@ def _parse_csv(value: str | None, fallback: list[str]) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+LLMProviderName = Literal["openai", "gemini"]
+SUPPORTED_LLM_PROVIDERS: tuple[LLMProviderName, ...] = ("openai", "gemini")
+LLM_PROVIDER_LABELS: dict[LLMProviderName, str] = {
+    "openai": "OpenAI",
+    "gemini": "Google Gemini",
+}
+LLM_PROVIDER_SUGGESTED_MODELS: dict[LLMProviderName, tuple[str, ...]] = {
+    "openai": ("gpt-5.4-mini", "gpt-5.4", "gpt-5.2"),
+    "gemini": ("gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"),
+}
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file="../.env",
@@ -132,6 +144,11 @@ class Settings(BaseSettings):
             return self.gemini_api_key
         return self.openai_api_key
 
+    def api_key_for(self, provider: LLMProviderName) -> str | None:
+        if provider == "gemini":
+            return self.gemini_api_key
+        return self.openai_api_key
+
     @property
     def llm_is_enabled(self) -> bool:
         requested = self.llm_enable if self.llm_enable is not None else False
@@ -140,6 +157,71 @@ class Settings(BaseSettings):
     @property
     def openai_enable_llm(self) -> bool:
         return self.llm_provider == "openai" and self.llm_is_enabled
+
+    def provider_label(self, provider: LLMProviderName) -> str:
+        return LLM_PROVIDER_LABELS[provider]
+
+    def default_model_for_provider(self, provider: LLMProviderName) -> str:
+        if provider == "gemini":
+            return self.gemini_model
+        return self.openai_model
+
+    def is_provider_available(self, provider: LLMProviderName) -> bool:
+        requested = self.llm_enable if self.llm_enable is not None else False
+        return requested and bool(self.api_key_for(provider))
+
+    def suggested_models_for_provider(self, provider: LLMProviderName) -> list[str]:
+        if provider == "gemini":
+            configured_models = [
+                self.gemini_model,
+                self.gemini_classifier_model,
+                self.gemini_interviewer_model,
+                self.gemini_drafter_model,
+                self.gemini_reviewer_model,
+                self.gemini_guard_model,
+            ]
+        else:
+            configured_models = [
+                self.openai_model,
+                self.openai_classifier_model,
+                self.openai_interviewer_model,
+                self.openai_drafter_model,
+                self.openai_reviewer_model,
+                self.openai_guard_model,
+            ]
+
+        suggestions: list[str] = []
+        for model in [*configured_models, *LLM_PROVIDER_SUGGESTED_MODELS[provider]]:
+            if model and model not in suggestions:
+                suggestions.append(model)
+        return suggestions
+
+    def with_llm_selection(self, provider: LLMProviderName, model: str | None = None) -> "Settings":
+        selected_model = (model or self.default_model_for_provider(provider)).strip()
+        updates: dict[str, str] = {"llm_provider": provider}
+
+        if provider == "gemini":
+            for field_name in (
+                "gemini_model",
+                "gemini_classifier_model",
+                "gemini_interviewer_model",
+                "gemini_drafter_model",
+                "gemini_reviewer_model",
+                "gemini_guard_model",
+            ):
+                updates[field_name] = selected_model
+        else:
+            for field_name in (
+                "openai_model",
+                "openai_classifier_model",
+                "openai_interviewer_model",
+                "openai_drafter_model",
+                "openai_reviewer_model",
+                "openai_guard_model",
+            ):
+                updates[field_name] = selected_model
+
+        return self.model_copy(update=updates)
 
     def model_for(self, capability: str) -> str:
         if self.llm_provider == "gemini":

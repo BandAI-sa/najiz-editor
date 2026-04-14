@@ -1,10 +1,49 @@
+import { getState } from "./state.js";
+
 const DEFAULT_BASE_URL = `${window.location.origin}/api`;
 const BASE_URL = (window.NAJIZ_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, "");
+
+function getLLMSelection() {
+  const { llm } = getState();
+  if (!llm.selectedProvider || !llm.selectedModel) {
+    return null;
+  }
+
+  return {
+    provider: llm.selectedProvider,
+    model: llm.selectedModel,
+  };
+}
+
+function buildLLMHeaders() {
+  const selection = getLLMSelection();
+  if (!selection) {
+    return {};
+  }
+
+  return {
+    "X-LLM-Provider": selection.provider,
+    "X-LLM-Model": selection.model,
+  };
+}
+
+function buildLLMQuery() {
+  const selection = getLLMSelection();
+  const params = new URLSearchParams();
+  if (!selection) {
+    return params;
+  }
+
+  params.set("llm_provider", selection.provider);
+  params.set("llm_model", selection.model);
+  return params;
+}
 
 async function apiCall(path, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...buildLLMHeaders(),
       ...(options.headers || {}),
     },
     ...options,
@@ -22,6 +61,10 @@ async function apiCall(path, options = {}) {
 
   return payload;
 }
+
+export const configAPI = {
+  getLLMConfig: () => apiCall("/config/llm"),
+};
 
 export const classificationsAPI = {
   getMainClassifications: () => apiCall("/classifications/"),
@@ -71,9 +114,9 @@ export const agentAPI = {
       body: JSON.stringify({ session_id: sessionId, issue_id: issueId, instruction }),
     }),
   streamDraft(sessionId, handlers) {
-    const eventSource = new EventSource(
-      `${BASE_URL}/agent/draft/stream?session_id=${encodeURIComponent(sessionId)}`
-    );
+    const params = buildLLMQuery();
+    params.set("session_id", sessionId);
+    const eventSource = new EventSource(`${BASE_URL}/agent/draft/stream?${params.toString()}`);
     let completed = false;
     let handledError = false;
     const types = ["start", "chunk", "end", "complete", "error"];

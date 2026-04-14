@@ -18,6 +18,50 @@
   </head>
   <body>
     <div class="page-backdrop" aria-hidden="true"></div>
+    <section id="llm-status-bar" class="llm-status-bar hidden" aria-live="polite">
+      <div class="llm-status-copy">
+        <span class="llm-status-kicker">الإعداد الحالي</span>
+        <strong id="llm-status-provider">—</strong>
+        <span id="llm-status-model" class="llm-status-model">—</span>
+      </div>
+      <button id="llm-config-change-btn" class="btn btn-ghost" type="button">تغيير الإعداد</button>
+    </section>
+
+    <div id="llm-config-overlay" class="llm-config-overlay hidden" aria-hidden="true">
+      <section
+        class="llm-config-dialog panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="llm-config-title"
+      >
+        <p class="eyebrow">إعداد أولي</p>
+        <h2 id="llm-config-title">اختر مزود الذكاء والنموذج</h2>
+        <p class="llm-config-copy">
+          يظهر هذا السؤال مرة واحدة فقط عند أول دخول. بعد الحفظ سيبقى الشريط العلوي لعرض الإعداد الحالي
+          ويمكنك تغييره لاحقاً.
+        </p>
+
+        <div id="llm-provider-options" class="llm-provider-grid"></div>
+
+        <label class="field-label" for="llm-model-input">اسم النموذج</label>
+        <input
+          id="llm-model-input"
+          class="select-field"
+          type="text"
+          list="llm-model-suggestions"
+          placeholder="اختر من المقترحات أو اكتب اسم النموذج"
+          autocomplete="off"
+        />
+        <datalist id="llm-model-suggestions"></datalist>
+        <p id="llm-config-hint" class="llm-config-hint"></p>
+
+        <div class="llm-config-actions">
+          <button id="llm-config-cancel-btn" class="btn btn-secondary" type="button">إغلاق</button>
+          <button id="llm-config-save-btn" class="btn btn-primary" type="button">اعتماد الإعداد</button>
+        </div>
+      </section>
+    </div>
+
     <div class="page-grid" dir="rtl">
       <aside class="sidebar" dir="rtl">
         <section class="hero-card">
