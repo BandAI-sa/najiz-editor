@@ -7,7 +7,7 @@ from app.services.agent.phase1_classifier import _StructuredClassification
 from app.services.llm.base import build_gemini_json_schema
 from app.services.llm.factory import build_llm_client
 from app.services.llm.gemini_client import GeminiResponseClient
-from app.services.llm.openai_client import OpenAIResponseClient
+from app.services.llm.openai_client import OpenAIResponseClient, _supports_native_structured_outputs
 
 
 def test_build_openai_client_from_env(monkeypatch):
@@ -124,6 +124,52 @@ def test_request_override_falls_back_when_provider_is_unavailable(monkeypatch):
 
     assert resolved.llm_provider == "openai"
     assert resolved.model_for("classifier") == settings.openai_model
+
+
+def test_model_catalog_includes_enriched_openai_and_gemini_options(monkeypatch):
+    monkeypatch.setenv("APP_ENCRYPTION_KEY", "test-encryption-key")
+    settings = Settings()
+
+    openai_models = settings.suggested_models_for_provider("openai")
+    gemini_models = settings.suggested_models_for_provider("gemini")
+
+    assert "gpt-5.2" in openai_models
+    assert "gpt-5.2-chat-latest" in openai_models
+    assert "gemini-3-pro-preview" in gemini_models
+    assert "gemini-3-flash-preview" in gemini_models
+
+
+def test_structured_output_support_flags_pro_models_correctly():
+    assert _supports_native_structured_outputs("gpt-5.2") is True
+    assert _supports_native_structured_outputs("gpt-5.2-pro") is False
+    assert _supports_native_structured_outputs("gpt-5.4-pro") is False
+
+
+async def test_openai_structured_parse_falls_back_to_text_generation(monkeypatch):
+    monkeypatch.setenv("APP_ENCRYPTION_KEY", "test-encryption-key")
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_ENABLE", "true")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
+
+    settings = Settings().with_llm_selection("openai", "gpt-5.2-pro")
+    client = OpenAIResponseClient(settings)
+
+    async def fake_generate_text(*args, **kwargs):
+        return '{"suggestions":[{"case_id":"case-01-01-001","confidence":0.91,"rationale":"fallback"}]}'
+
+    monkeypatch.setattr(client, "generate_text", fake_generate_text)
+
+    parsed = await client.parse_structured(
+        "classifier",
+        "Return JSON.",
+        [{"role": "user", "content": "facts"}],
+        _StructuredClassification,
+        temperature=0.2,
+        max_output_tokens=200,
+    )
+
+    assert parsed.suggestions[0].case_id == "case-01-01-001"
+    assert parsed.suggestions[0].confidence == 0.91
 
 
 def test_gemini_schema_is_flattened_for_structured_output():

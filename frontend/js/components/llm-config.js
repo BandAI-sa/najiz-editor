@@ -26,11 +26,58 @@ function buildProviderCard(provider, activeProvider, onSelect) {
   return button;
 }
 
-function fillSuggestions(listElement, suggestions) {
+function buildModelCard(model, activeModel, onSelect) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "llm-model-card";
+  if (model.id === activeModel) {
+    button.classList.add("is-active");
+  }
+
+  const title = document.createElement("strong");
+  title.textContent = model.label;
+
+  const summary = document.createElement("p");
+  summary.className = "llm-model-summary";
+  summary.textContent = model.summary;
+
+  const badges = document.createElement("div");
+  badges.className = "llm-model-badges";
+
+  const tier = document.createElement("span");
+  tier.className = "llm-model-badge";
+  tier.textContent = model.tier;
+  badges.appendChild(tier);
+
+  if (model.recommended) {
+    const recommended = document.createElement("span");
+    recommended.className = "llm-model-badge";
+    recommended.textContent = "recommended";
+    badges.appendChild(recommended);
+  }
+
+  if (model.stage && model.stage !== "stable" && model.stage !== "custom") {
+    const stage = document.createElement("span");
+    stage.className = "llm-model-badge preview";
+    stage.textContent = model.stage;
+    badges.appendChild(stage);
+  }
+
+  const note = document.createElement("p");
+  note.className = "llm-model-note";
+  note.textContent = model.notes || "";
+  note.classList.toggle("hidden", !model.notes);
+
+  button.addEventListener("click", () => onSelect(model.id));
+  button.append(title, summary, badges, note);
+  return button;
+}
+
+function fillSuggestions(listElement, models) {
   listElement.replaceChildren();
-  suggestions.forEach((model) => {
+  models.forEach((model) => {
     const option = document.createElement("option");
-    option.value = model;
+    option.value = model.id;
     listElement.appendChild(option);
   });
 }
@@ -45,6 +92,7 @@ export function createLLMConfigComponent(elements, handlers) {
     providerOptions,
     modelInput,
     modelSuggestions,
+    modelOptions,
     hint,
     saveButton,
     cancelButton,
@@ -66,6 +114,11 @@ export function createLLMConfigComponent(elements, handlers) {
       const { llm } = state;
       const activeProvider = llm.providers.find((provider) => provider.id === llm.draftProvider) || null;
       const shownProvider = llm.providers.find((provider) => provider.id === llm.selectedProvider) || activeProvider;
+      const providerModels = activeProvider?.models || [];
+      const activeModel =
+        providerModels.find((model) => model.id === llm.draftModel) ||
+        providerModels.find((model) => model.id === activeProvider?.default_model) ||
+        null;
 
       statusBar.classList.toggle("hidden", !llm.hasSavedSelection);
       if (shownProvider) {
@@ -83,14 +136,18 @@ export function createLLMConfigComponent(elements, handlers) {
         )
       );
 
-      fillSuggestions(modelSuggestions, activeProvider?.suggested_models || []);
+      modelOptions.replaceChildren(
+        ...providerModels.map((model) => buildModelCard(model, llm.draftModel, handlers.onModelSelect))
+      );
+
+      fillSuggestions(modelSuggestions, providerModels);
       if (modelInput.value !== llm.draftModel) {
         modelInput.value = llm.draftModel;
       }
 
-      hint.textContent = activeProvider
-        ? `سيُستخدم ${activeProvider.label} مع النموذج ${activeProvider.default_model} افتراضياً، ويمكنك كتابة اسم مختلف إذا رغبت.`
-        : "اختر مزوداً أولاً لعرض النماذج المقترحة.";
+      hint.textContent = activeModel
+        ? `${activeModel.summary}${activeModel.notes ? ` ${activeModel.notes}` : ""}`
+        : "يمكنك اختيار بطاقة من النماذج المقترحة أو كتابة معرف نموذج مخصص إذا لزم.";
 
       saveButton.disabled = !activeProvider?.enabled || !llm.draftModel.trim();
       cancelButton.classList.toggle("hidden", !llm.canDismissChooser);
