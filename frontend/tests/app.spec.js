@@ -8,6 +8,33 @@ function mockApi(page) {
     const { pathname } = url;
     const method = route.request().method();
 
+    if (pathname.endsWith("/api/config/llm") && method === "GET") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          current_provider: "openai",
+          current_model: "gpt-5.4-mini",
+          providers: [
+            {
+              id: "openai",
+              label: "OpenAI",
+              enabled: true,
+              default_model: "gpt-5.4-mini",
+              suggested_models: ["gpt-5.4-mini", "gpt-5.4"],
+            },
+            {
+              id: "gemini",
+              label: "Google Gemini",
+              enabled: true,
+              default_model: "gemini-2.5-flash",
+              suggested_models: ["gemini-2.5-flash", "gemini-2.5-pro"],
+            },
+          ],
+        }),
+      });
+    }
+
     if (pathname.endsWith("/api/classifications/") && method === "GET") {
       return route.fulfill({
         status: 200,
@@ -276,6 +303,15 @@ function mockApi(page) {
   });
 }
 
+async function chooseLLMConfig(page) {
+  await expect(page.locator("#llm-config-overlay")).toBeVisible();
+  await expect(page.locator("#llm-config-title")).toContainText("اختر مزود الذكاء");
+  await page.locator("#llm-config-save-btn").click();
+  await expect(page.locator("#llm-config-overlay")).toBeHidden();
+  await expect(page.locator("#llm-status-bar")).toBeVisible();
+  await expect(page.locator("#main-select option")).toHaveCount(2);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     class FakeEventSource {
@@ -319,6 +355,7 @@ test.beforeEach(async ({ page }) => {
 
 test("renders RTL flow from classification to review and export", async ({ page }) => {
   await page.goto("/");
+  await chooseLLMConfig(page);
 
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
   await expect(page.locator("#messages")).toContainText("مرحبًا");
@@ -352,6 +389,7 @@ test("renders RTL flow from classification to review and export", async ({ page 
 test("supports manual cascading classification on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await chooseLLMConfig(page);
 
   await page.locator("#main-select").selectOption("main-01");
   await page.locator("#sub-select").selectOption("sub-01");
