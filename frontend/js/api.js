@@ -1,6 +1,5 @@
-const API_HOST = window.location.hostname || "localhost";
-const BASE_URL =
-  window.NAJIZ_API_BASE_URL || `${window.location.protocol}//${API_HOST}:8000/api`;
+const DEFAULT_BASE_URL = `${window.location.origin}/api`;
+const BASE_URL = (window.NAJIZ_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, "");
 
 async function apiCall(path, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {
