@@ -25,6 +25,20 @@ class HealthResponse(BaseSchema):
     storage: str
 
 
+class LLMProviderOption(BaseSchema):
+    id: str
+    label: str
+    enabled: bool
+    default_model: str
+    suggested_models: list[str] = Field(default_factory=list)
+
+
+class LLMConfigResponse(BaseSchema):
+    current_provider: str
+    current_model: str
+    providers: list[LLMProviderOption] = Field(default_factory=list)
+
+
 class CreateSessionResponse(BaseSchema):
     session: Session
 

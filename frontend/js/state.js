@@ -3,6 +3,17 @@ const initialState = () => ({
   currentPhase: 1,
   currentStep: "welcome",
   loading: false,
+  llm: {
+    ready: false,
+    providers: [],
+    hasSavedSelection: false,
+    chooserOpen: false,
+    canDismissChooser: false,
+    selectedProvider: "",
+    selectedModel: "",
+    draftProvider: "",
+    draftModel: "",
+  },
   classification: {
     mainId: "",
     subId: "",
@@ -91,8 +102,11 @@ export function updateState(mutator) {
   emit();
 }
 
-export function resetState() {
+export function resetState(options = {}) {
   const fresh = initialState();
+  if (options.preserveLLM !== false) {
+    fresh.llm = clone(state.llm);
+  }
   Object.keys(state).forEach((key) => {
     delete state[key];
   });

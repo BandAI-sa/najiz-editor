@@ -12,6 +12,10 @@ async def test_health_and_classification_routes(client):
     assert health_response.status_code == 200
     assert health_response.json()["storage"] == "memory"
 
+    llm_config_response = await client.get("/api/config/llm")
+    assert llm_config_response.status_code == 200
+    assert len(llm_config_response.json()["providers"]) == 2
+
     classifications_response = await client.get("/api/classifications/")
     assert classifications_response.status_code == 200
     assert len(classifications_response.json()) == 7

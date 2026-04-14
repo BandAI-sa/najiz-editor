@@ -33,6 +33,10 @@ body {
   position: relative;
 }
 
+.overlay-open {
+  overflow: hidden;
+}
+
 .page-backdrop {
   position: fixed;
   inset: 0;
@@ -41,6 +45,131 @@ body {
     radial-gradient(circle at 88% 20%, rgba(13, 92, 99, 0.14), transparent 20%),
     radial-gradient(circle at 50% 80%, rgba(164, 124, 88, 0.1), transparent 18%);
   pointer-events: none;
+}
+
+.llm-status-bar {
+  position: relative;
+  z-index: 2;
+  width: min(1440px, calc(100% - 32px));
+  margin: 24px auto 0;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(13, 92, 99, 0.16);
+  border-radius: 22px;
+  background: rgba(255, 250, 241, 0.9);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(14px);
+}
+
+.llm-status-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.llm-status-kicker {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(13, 92, 99, 0.08);
+  color: var(--color-primary-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.llm-status-model {
+  color: var(--color-muted);
+}
+
+.llm-config-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background:
+    linear-gradient(180deg, rgba(16, 26, 28, 0.36), rgba(16, 26, 28, 0.48)),
+    radial-gradient(circle at top, rgba(201, 113, 43, 0.14), transparent 34%);
+  backdrop-filter: blur(10px);
+}
+
+.llm-config-dialog {
+  width: min(680px, 100%);
+  padding: 28px;
+  background: linear-gradient(180deg, rgba(255, 250, 241, 0.98), rgba(244, 250, 248, 0.96));
+  animation: rise-in 260ms ease;
+}
+
+.llm-config-copy,
+.llm-config-hint {
+  margin: 12px 0 0;
+  color: var(--color-muted);
+  line-height: 1.9;
+}
+
+.llm-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.llm-provider-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(13, 92, 99, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  text-align: right;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.llm-provider-card:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(13, 92, 99, 0.28);
+}
+
+.llm-provider-card.is-active {
+  border-color: rgba(13, 92, 99, 0.38);
+  background: rgba(13, 92, 99, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(13, 92, 99, 0.12);
+}
+
+.llm-provider-card.is-disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.llm-provider-meta {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.llm-provider-tag {
+  justify-self: flex-start;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(201, 113, 43, 0.12);
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.llm-config-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .page-grid {
@@ -631,8 +760,18 @@ body {
 }
 
 @media (max-width: 720px) {
+  .llm-status-bar,
   .page-grid {
     width: min(100% - 16px, 100%);
+  }
+
+  .llm-status-bar {
+    margin: 8px auto 0;
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .page-grid {
     margin: 8px auto 20px;
   }
 
@@ -645,7 +784,9 @@ body {
   .panel-head-inline,
   .review-summary,
   .composer-actions,
-  .petition-actions {
+  .petition-actions,
+  .llm-status-bar,
+  .llm-config-actions {
     flex-direction: column;
     align-items: stretch;
   }
@@ -662,5 +803,9 @@ body {
 
   .petition-editor {
     min-height: 280px;
+  }
+
+  .llm-config-dialog {
+    padding: 22px 18px;
   }
 }
