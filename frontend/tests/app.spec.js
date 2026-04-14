@@ -411,7 +411,8 @@ async function chooseLLMConfig(page) {
   await page.getByRole("button", { name: "Google Gemini" }).click();
   await expect(page.locator("#llm-model-options")).toContainText("Gemini 3 Pro Preview");
   await page.getByRole("button", { name: "OpenAI" }).click();
-  await page.locator("#llm-config-save-btn").evaluate((button) => button.click());
+  await page.locator("#llm-config-save-btn").scrollIntoViewIfNeeded();
+  await page.locator("#llm-config-save-btn").click();
   await expect(page.locator("#llm-config-overlay")).toBeHidden();
   await expect(page.locator("#llm-status-bar")).toBeVisible();
   await expect(page.locator("#main-select option")).toHaveCount(2);
