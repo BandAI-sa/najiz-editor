@@ -314,6 +314,7 @@ const chatComponent = createChatComponent({
   container: document.getElementById("messages"),
   form: document.getElementById("message-form"),
   input: document.getElementById("message-input"),
+  submitButton: document.getElementById("send-btn"),
   onSubmit: (value) => phase1.sendMessage(value),
 });
 

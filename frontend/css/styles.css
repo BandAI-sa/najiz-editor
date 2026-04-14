@@ -429,12 +429,32 @@ body {
   border: 1px solid rgba(13, 92, 99, 0.16);
 }
 
+.message-card.pending {
+  border-style: dashed;
+}
+
 .message-meta {
   display: flex;
   justify-content: space-between;
   color: var(--color-muted);
   font-size: 0.78rem;
   margin-bottom: 6px;
+}
+
+.pending-message {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pending-spinner {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(13, 92, 99, 0.16);
+  border-top-color: var(--color-accent);
+  animation: spin 0.8s linear infinite;
 }
 
 .composer {
@@ -445,6 +465,11 @@ body {
 .composer-input {
   resize: vertical;
   min-height: 96px;
+}
+
+.composer-input:disabled {
+  cursor: progress;
+  opacity: 0.72;
 }
 
 .composer-actions {

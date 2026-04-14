@@ -3,6 +3,7 @@ const initialState = () => ({
   currentPhase: 1,
   currentStep: "welcome",
   loading: false,
+  loadingMessage: "",
   llm: {
     ready: false,
     providers: [],
