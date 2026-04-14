@@ -25,12 +25,23 @@ class HealthResponse(BaseSchema):
     storage: str
 
 
+class LLMModelOption(BaseSchema):
+    id: str
+    label: str
+    summary: str
+    tier: str
+    stage: str
+    notes: str = ""
+    recommended: bool = False
+
+
 class LLMProviderOption(BaseSchema):
     id: str
     label: str
     enabled: bool
     default_model: str
     suggested_models: list[str] = Field(default_factory=list)
+    models: list[LLMModelOption] = Field(default_factory=list)
 
 
 class LLMConfigResponse(BaseSchema):

@@ -21,17 +21,144 @@ const FALLBACK_LLM_CONFIG = {
       label: "OpenAI",
       enabled: true,
       default_model: "gpt-5.4-mini",
-      suggested_models: ["gpt-5.4-mini", "gpt-5.4", "gpt-5.2"],
+      suggested_models: ["gpt-5.4", "gpt-5.2", "gpt-5.2-chat-latest", "gpt-5.4-mini", "gpt-5.4-nano"],
+      models: [
+        {
+          id: "gpt-5.4",
+          label: "GPT-5.4",
+          summary: "Flagship OpenAI preset for the strongest reasoning and legal drafting quality.",
+          tier: "flagship",
+          stage: "stable",
+          notes: "Best fit when quality matters more than latency or cost.",
+          recommended: true,
+        },
+        {
+          id: "gpt-5.2",
+          label: "GPT-5.2",
+          summary: "High-end GPT-5 family model for professional writing and complex analysis.",
+          tier: "advanced",
+          stage: "stable",
+          notes: "A strong heavier option below GPT-5.4 for demanding tasks.",
+          recommended: false,
+        },
+        {
+          id: "gpt-5.2-chat-latest",
+          label: "GPT-5.2 Chat Latest",
+          summary: "ChatGPT-tuned GPT-5.2 alias for more conversational behavior.",
+          tier: "chat",
+          stage: "alias",
+          notes: "Alias model that may move with newer GPT-5.2 chat snapshots.",
+          recommended: false,
+        },
+        {
+          id: "gpt-5.4-mini",
+          label: "GPT-5.4 Mini",
+          summary: "Balanced lower-latency option that still handles strong reasoning well.",
+          tier: "balanced",
+          stage: "stable",
+          notes: "Good default when you want speed without dropping too much quality.",
+          recommended: false,
+        },
+        {
+          id: "gpt-5.4-nano",
+          label: "GPT-5.4 Nano",
+          summary: "Fastest and cheapest GPT-5.4-family preset for lighter, high-volume requests.",
+          tier: "fast",
+          stage: "stable",
+          notes: "Best for quick iterations and lower-cost workloads.",
+          recommended: false,
+        },
+      ],
     },
     {
       id: "gemini",
       label: "Google Gemini",
       enabled: true,
       default_model: "gemini-2.5-flash",
-      suggested_models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"],
+      suggested_models: [
+        "gemini-3-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+      ],
+      models: [
+        {
+          id: "gemini-3-pro-preview",
+          label: "Gemini 3 Pro Preview",
+          summary: "Most capable Gemini preset here for deeper reasoning and harder drafting tasks.",
+          tier: "flagship",
+          stage: "preview",
+          notes: "Preview model; quality is high, but behavior and availability can change.",
+          recommended: false,
+        },
+        {
+          id: "gemini-3-flash-preview",
+          label: "Gemini 3 Flash Preview",
+          summary: "Newer Gemini preview with a strong speed-to-quality balance.",
+          tier: "balanced",
+          stage: "preview",
+          notes: "Preview model tuned for fast, capable general work.",
+          recommended: false,
+        },
+        {
+          id: "gemini-2.5-pro",
+          label: "Gemini 2.5 Pro",
+          summary: "Stable advanced Gemini model for complex legal reasoning and long-form drafting.",
+          tier: "advanced",
+          stage: "stable",
+          notes: "The strongest stable Gemini preset in this app.",
+          recommended: false,
+        },
+        {
+          id: "gemini-2.5-flash",
+          label: "Gemini 2.5 Flash",
+          summary: "Stable default with strong price-performance for general legal workflows.",
+          tier: "balanced",
+          stage: "stable",
+          notes: "Best balance for everyday use if you prefer Gemini.",
+          recommended: true,
+        },
+        {
+          id: "gemini-2.5-flash-lite",
+          label: "Gemini 2.5 Flash-Lite",
+          summary: "Fastest budget-friendly Gemini preset for lower-latency tasks.",
+          tier: "fast",
+          stage: "stable",
+          notes: "Useful when responsiveness matters more than maximum depth.",
+          recommended: false,
+        },
+      ],
     },
   ],
 };
+
+function normalizeProviderModels(provider) {
+  if (Array.isArray(provider.models) && provider.models.length > 0) {
+    return provider.models;
+  }
+
+  return (provider.suggested_models || []).map((modelId) => ({
+    id: modelId,
+    label: modelId,
+    summary: "Model option discovered from backend suggestions.",
+    tier: "custom",
+    stage: "custom",
+    notes: "",
+    recommended: modelId === provider.default_model,
+  }));
+}
+
+function normalizeLLMConfig(config) {
+  return {
+    ...config,
+    providers: (config.providers || []).map((provider) => ({
+      ...provider,
+      models: normalizeProviderModels(provider),
+      suggested_models: provider.suggested_models || normalizeProviderModels(provider).map((model) => model.id),
+    })),
+  };
+}
 
 function readStoredLLMSelection() {
   try {
@@ -111,6 +238,7 @@ const llmConfigComponent = createLLMConfigComponent(
     providerOptions: document.getElementById("llm-provider-options"),
     modelInput: document.getElementById("llm-model-input"),
     modelSuggestions: document.getElementById("llm-model-suggestions"),
+    modelOptions: document.getElementById("llm-model-options"),
     hint: document.getElementById("llm-config-hint"),
     saveButton: document.getElementById("llm-config-save-btn"),
     cancelButton: document.getElementById("llm-config-cancel-btn"),
@@ -144,6 +272,11 @@ const llmConfigComponent = createLLMConfigComponent(
 
         draft.llm.draftProvider = provider.id;
         draft.llm.draftModel = provider.default_model;
+      });
+    },
+    onModelSelect: (modelId) => {
+      updateState((draft) => {
+        draft.llm.draftModel = modelId;
       });
     },
     onModelInput: (value) => {
@@ -291,7 +424,7 @@ subscribe((state) => {
 seedWelcomeMessage();
 
 async function initializeLLMConfig() {
-  const llmConfig = await configAPI.getLLMConfig().catch(() => FALLBACK_LLM_CONFIG);
+  const llmConfig = normalizeLLMConfig(await configAPI.getLLMConfig().catch(() => FALLBACK_LLM_CONFIG));
   const storedSelection = readStoredLLMSelection();
   const preferredProvider = findPreferredProvider(
     llmConfig.providers,
@@ -328,20 +461,21 @@ async function initializeLLMConfig() {
 }
 
 initializeLLMConfig().catch(() => {
+  const fallbackConfig = normalizeLLMConfig(FALLBACK_LLM_CONFIG);
   updateState((draft) => {
     draft.llm.ready = true;
-    draft.llm.providers = FALLBACK_LLM_CONFIG.providers;
+    draft.llm.providers = fallbackConfig.providers;
     draft.llm.hasSavedSelection = true;
     draft.llm.chooserOpen = false;
     draft.llm.canDismissChooser = true;
-    draft.llm.selectedProvider = FALLBACK_LLM_CONFIG.current_provider;
-    draft.llm.selectedModel = FALLBACK_LLM_CONFIG.current_model;
-    draft.llm.draftProvider = FALLBACK_LLM_CONFIG.current_provider;
-    draft.llm.draftModel = FALLBACK_LLM_CONFIG.current_model;
+    draft.llm.selectedProvider = fallbackConfig.current_provider;
+    draft.llm.selectedModel = fallbackConfig.current_model;
+    draft.llm.draftProvider = fallbackConfig.current_provider;
+    draft.llm.draftModel = fallbackConfig.current_model;
   });
   persistLLMSelection({
-    provider: FALLBACK_LLM_CONFIG.current_provider,
-    model: FALLBACK_LLM_CONFIG.current_model,
+    provider: fallbackConfig.current_provider,
+    model: fallbackConfig.current_model,
   });
   return bootstrapClassifications();
 });

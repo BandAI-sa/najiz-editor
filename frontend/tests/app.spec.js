@@ -21,14 +21,114 @@ function mockApi(page) {
               label: "OpenAI",
               enabled: true,
               default_model: "gpt-5.4-mini",
-              suggested_models: ["gpt-5.4-mini", "gpt-5.4"],
+              suggested_models: ["gpt-5.4", "gpt-5.2", "gpt-5.2-chat-latest", "gpt-5.4-mini", "gpt-5.4-nano"],
+              models: [
+                {
+                  id: "gpt-5.4",
+                  label: "GPT-5.4",
+                  summary: "flagship",
+                  tier: "flagship",
+                  stage: "stable",
+                  notes: "",
+                  recommended: true,
+                },
+                {
+                  id: "gpt-5.2",
+                  label: "GPT-5.2",
+                  summary: "advanced",
+                  tier: "advanced",
+                  stage: "stable",
+                  notes: "",
+                  recommended: false,
+                },
+                {
+                  id: "gpt-5.2-chat-latest",
+                  label: "GPT-5.2 Chat Latest",
+                  summary: "chat alias",
+                  tier: "chat",
+                  stage: "alias",
+                  notes: "",
+                  recommended: false,
+                },
+                {
+                  id: "gpt-5.4-mini",
+                  label: "GPT-5.4 Mini",
+                  summary: "balanced",
+                  tier: "balanced",
+                  stage: "stable",
+                  notes: "",
+                  recommended: false,
+                },
+                {
+                  id: "gpt-5.4-nano",
+                  label: "GPT-5.4 Nano",
+                  summary: "fast",
+                  tier: "fast",
+                  stage: "stable",
+                  notes: "",
+                  recommended: false,
+                },
+              ],
             },
             {
               id: "gemini",
               label: "Google Gemini",
               enabled: true,
               default_model: "gemini-2.5-flash",
-              suggested_models: ["gemini-2.5-flash", "gemini-2.5-pro"],
+              suggested_models: [
+                "gemini-3-pro-preview",
+                "gemini-3-flash-preview",
+                "gemini-2.5-pro",
+                "gemini-2.5-flash",
+                "gemini-2.5-flash-lite",
+              ],
+              models: [
+                {
+                  id: "gemini-3-pro-preview",
+                  label: "Gemini 3 Pro Preview",
+                  summary: "flagship",
+                  tier: "flagship",
+                  stage: "preview",
+                  notes: "",
+                  recommended: false,
+                },
+                {
+                  id: "gemini-3-flash-preview",
+                  label: "Gemini 3 Flash Preview",
+                  summary: "balanced",
+                  tier: "balanced",
+                  stage: "preview",
+                  notes: "",
+                  recommended: false,
+                },
+                {
+                  id: "gemini-2.5-pro",
+                  label: "Gemini 2.5 Pro",
+                  summary: "advanced",
+                  tier: "advanced",
+                  stage: "stable",
+                  notes: "",
+                  recommended: false,
+                },
+                {
+                  id: "gemini-2.5-flash",
+                  label: "Gemini 2.5 Flash",
+                  summary: "balanced",
+                  tier: "balanced",
+                  stage: "stable",
+                  notes: "",
+                  recommended: true,
+                },
+                {
+                  id: "gemini-2.5-flash-lite",
+                  label: "Gemini 2.5 Flash-Lite",
+                  summary: "fast",
+                  tier: "fast",
+                  stage: "stable",
+                  notes: "",
+                  recommended: false,
+                },
+              ],
             },
           ],
         }),
@@ -306,7 +406,11 @@ function mockApi(page) {
 async function chooseLLMConfig(page) {
   await expect(page.locator("#llm-config-overlay")).toBeVisible();
   await expect(page.locator("#llm-config-title")).toContainText("اختر مزود الذكاء");
-  await page.locator("#llm-config-save-btn").click();
+  await expect(page.locator("#llm-model-options")).toContainText("GPT-5.2");
+  await page.getByRole("button", { name: "Google Gemini" }).click();
+  await expect(page.locator("#llm-model-options")).toContainText("Gemini 3 Pro Preview");
+  await page.getByRole("button", { name: "OpenAI" }).click();
+  await page.locator("#llm-config-save-btn").evaluate((button) => button.click());
   await expect(page.locator("#llm-config-overlay")).toBeHidden();
   await expect(page.locator("#llm-status-bar")).toBeVisible();
   await expect(page.locator("#main-select option")).toHaveCount(2);
