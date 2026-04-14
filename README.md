@@ -95,8 +95,6 @@ npm run test:e2e
   - `VPS_PASSWORD`
   - `DEPLOY_ENV_FILE` or the legacy `STAGING_ENV_FILE`
  
-  [![Main Deploy](https://github.com/BandAI-sa/najiz-editor/actions/workflows/main.yml/badge.svg)](https://github.com/BandAI-sa/najiz-editor/actions/workflows/main.yml)
-
-Use [deploy/staging.env.example](deploy/staging.env.example) as the template for the deploy env file, replacing `YOUR_VPS_IP` and the encryption key with real values.
+[![Main Deploy](https://github.com/BandAI-sa/najiz-editor/actions/workflows/main.yml/badge.svg?event=deployment_status)](https://github.com/BandAI-sa/najiz-editor/actions/workflows/main.yml)
 
 If the live app should deploy somewhere other than the current default directory on the VPS, set the repository variable `DEPLOY_APP_DIR`.
