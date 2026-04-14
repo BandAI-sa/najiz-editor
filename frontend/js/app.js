@@ -12,6 +12,27 @@ import { getState, resetState, subscribe, updateState } from "./state.js";
 
 const LLM_SELECTION_STORAGE_KEY = "najiz.llm.selection";
 
+const FALLBACK_LLM_CONFIG = {
+  current_provider: "openai",
+  current_model: "gpt-5.4-mini",
+  providers: [
+    {
+      id: "openai",
+      label: "OpenAI",
+      enabled: true,
+      default_model: "gpt-5.4-mini",
+      suggested_models: ["gpt-5.4-mini", "gpt-5.4", "gpt-5.2"],
+    },
+    {
+      id: "gemini",
+      label: "Google Gemini",
+      enabled: true,
+      default_model: "gemini-2.5-flash",
+      suggested_models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"],
+    },
+  ],
+};
+
 function readStoredLLMSelection() {
   try {
     const raw = window.localStorage.getItem(LLM_SELECTION_STORAGE_KEY);
@@ -59,7 +80,7 @@ function seedWelcomeMessage() {
 
     draft.chat.push({
       role: "assistant",
-      content: "مرحباً. صف لي وقائع الدعوى أو اختر التصنيف يدوياً لنبدأ.",
+      content: "مرحبًا. صف لي وقائع الدعوى أو اختر التصنيف يدويًا لنبدأ.",
       timestamp: new Date().toISOString(),
     });
   });
@@ -270,7 +291,7 @@ subscribe((state) => {
 seedWelcomeMessage();
 
 async function initializeLLMConfig() {
-  const llmConfig = await configAPI.getLLMConfig();
+  const llmConfig = await configAPI.getLLMConfig().catch(() => FALLBACK_LLM_CONFIG);
   const storedSelection = readStoredLLMSelection();
   const preferredProvider = findPreferredProvider(
     llmConfig.providers,
@@ -309,7 +330,18 @@ async function initializeLLMConfig() {
 initializeLLMConfig().catch(() => {
   updateState((draft) => {
     draft.llm.ready = true;
+    draft.llm.providers = FALLBACK_LLM_CONFIG.providers;
+    draft.llm.hasSavedSelection = true;
     draft.llm.chooserOpen = false;
-    draft.llm.canDismissChooser = false;
+    draft.llm.canDismissChooser = true;
+    draft.llm.selectedProvider = FALLBACK_LLM_CONFIG.current_provider;
+    draft.llm.selectedModel = FALLBACK_LLM_CONFIG.current_model;
+    draft.llm.draftProvider = FALLBACK_LLM_CONFIG.current_provider;
+    draft.llm.draftModel = FALLBACK_LLM_CONFIG.current_model;
   });
+  persistLLMSelection({
+    provider: FALLBACK_LLM_CONFIG.current_provider,
+    model: FALLBACK_LLM_CONFIG.current_model,
+  });
+  return bootstrapClassifications();
 });
