@@ -114,6 +114,7 @@ jobs:
       - name: Prepare deploy bundle
         id: prep
         env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
           DEPLOY_ENV_FILE: ${{ secrets.DEPLOY_ENV_FILE }}
           STAGING_ENV_FILE: ${{ secrets.STAGING_ENV_FILE }}
         run: |
@@ -127,6 +128,52 @@ jobs:
           fi
 
           printf '%s' "$deploy_env_file" > .artifacts/deploy.env
+
+          upsert_env() {
+            key="$1"
+            value="$2"
+            tmp_file="$(mktemp)"
+            awk -v key="$key" -v value="$value" '
+              BEGIN { updated = 0 }
+              $0 ~ ("^" key "=") {
+                print key "=" value
+                updated = 1
+                next
+              }
+              { print }
+              END {
+                if (!updated) {
+                  print key "=" value
+                }
+              }
+            ' .artifacts/deploy.env > "$tmp_file"
+            mv "$tmp_file" .artifacts/deploy.env
+          }
+
+          mongodb_uri="$(grep '^MONGODB_URI=' .artifacts/deploy.env | head -n 1 | cut -d= -f2- | tr -d '\r' || true)"
+          case "$mongodb_uri" in
+            mongodb://localhost*)
+              normalized_mongodb_uri="mongodb://host.docker.internal${mongodb_uri#mongodb://localhost}"
+              upsert_env MONGODB_URI "$normalized_mongodb_uri"
+              echo "Normalized MONGODB_URI from localhost to host.docker.internal for Docker deployment."
+              ;;
+            mongodb://127.0.0.1*)
+              normalized_mongodb_uri="mongodb://host.docker.internal${mongodb_uri#mongodb://127.0.0.1}"
+              upsert_env MONGODB_URI "$normalized_mongodb_uri"
+              echo "Normalized MONGODB_URI from 127.0.0.1 to host.docker.internal for Docker deployment."
+              ;;
+          esac
+
+          allowed_hosts="$(grep '^APP_ALLOWED_HOSTS=' .artifacts/deploy.env | head -n 1 | cut -d= -f2- | tr -d '\r' || true)"
+          if [ -z "$allowed_hosts" ]; then
+            allowed_hosts="$VPS_HOST,localhost,127.0.0.1,backend"
+            upsert_env APP_ALLOWED_HOSTS "$allowed_hosts"
+            echo "Added APP_ALLOWED_HOSTS for deployment health checks."
+          elif ! printf '%s' "$allowed_hosts" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -Fx "$VPS_HOST" >/dev/null; then
+            allowed_hosts="$VPS_HOST,$allowed_hosts"
+            upsert_env APP_ALLOWED_HOSTS "$allowed_hosts"
+            echo "Prepended VPS host to APP_ALLOWED_HOSTS for deployment health checks."
+          fi
 
           backend_port="$(grep '^BACKEND_PORT=' .artifacts/deploy.env | head -n 1 | cut -d= -f2- | tr -d '\r' || true)"
           frontend_port="$(grep '^FRONTEND_PORT=' .artifacts/deploy.env | head -n 1 | cut -d= -f2- | tr -d '\r' || true)"
