@@ -1,3 +1,5 @@
+import { setMarkdownContent } from "../utils/markdown.js";
+
 function buildChip(label, value) {
   const chip = document.createElement("div");
   chip.className = "chip";
@@ -16,7 +18,7 @@ export function createProgressComponent(elements) {
 
   return {
     render(state) {
-      label.textContent = state.interview.currentPrompt || "ابدأ بذكر الوقائع الأساسية.";
+      setMarkdownContent(label, state.interview.currentPrompt, "ابدأ بذكر الوقائع الأساسية.");
       bar.style.width = `${state.interview.completion}%`;
       value.textContent = `${state.interview.completion}%`;
       count.textContent = `${state.interview.missingFields.length} حقول متبقية`;
@@ -32,8 +34,9 @@ export function createProgressComponent(elements) {
         alert.className = `alert-card ${severityClass(issue.severity)}`;
         const title = document.createElement("strong");
         title.textContent = issue.title;
-        const desc = document.createElement("p");
-        desc.textContent = `${issue.description} ${issue.recommendation}`;
+        const desc = document.createElement("div");
+        desc.className = "markdown-content";
+        setMarkdownContent(desc, `${issue.description}\n\n${issue.recommendation}`);
         alert.append(title, desc);
         guardAlerts.appendChild(alert);
       });

@@ -1,3 +1,5 @@
+import { renderMarkdownToHtml } from "../utils/markdown.js";
+
 function buildMessageCard(message) {
   const wrapper = document.createElement("article");
   wrapper.className = `message-card ${message.role}`;
@@ -17,7 +19,12 @@ function buildMessageCard(message) {
   meta.append(role, time);
 
   const content = document.createElement("div");
-  content.textContent = message.content;
+  content.className = message.role === "assistant" ? "message-body markdown-content" : "message-body";
+  if (message.role === "assistant") {
+    content.innerHTML = renderMarkdownToHtml(message.content);
+  } else {
+    content.textContent = message.content;
+  }
 
   wrapper.append(meta, content);
   return wrapper;

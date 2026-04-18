@@ -1,3 +1,5 @@
+import { renderMarkdownToHtml } from "../utils/markdown.js";
+
 function buildSkeleton() {
   const wrapper = document.createElement("div");
   wrapper.className = "petition-loading";
@@ -21,25 +23,21 @@ function buildSkeleton() {
   return wrapper;
 }
 
-function buildEditor({ value, section, disabled, readonly, onInput }) {
+function buildEditor({ value, section, disabled, onInput }) {
   const wrapper = document.createElement("div");
   wrapper.className = "petition-editor-shell";
 
   const note = document.createElement("div");
   note.className = "petition-editor-note";
-  if (disabled) {
-    note.textContent = "يتم تجهيز أو حفظ هذا القسم الآن...";
-  } else if (readonly) {
-    note.textContent = "القسم في وضع القراءة، انقر على 'تعديل الاختيار' لإجراء أي تغييرات.";
-  } else {
-    note.textContent = "وضع التعديل مفعل. لا تنسَ النقر على 'حفظ' بعد الانتهاء.";
-  }
+  note.textContent = disabled
+    ? "يتم تجهيز أو حفظ هذا القسم الآن..."
+    : "وضع التعديل مفعل. لا تنسَ النقر على 'حفظ' بعد الانتهاء.";
 
   const editor = document.createElement("textarea");
   editor.className = "petition-editor petition-text";
   editor.value = value;
   editor.disabled = disabled;
-  editor.readOnly = readonly;
+  editor.readOnly = false;
   editor.rows = 16;
   editor.spellcheck = false;
   editor.setAttribute("aria-label", sectionLabel(section));
@@ -47,6 +45,22 @@ function buildEditor({ value, section, disabled, readonly, onInput }) {
   editor.addEventListener("input", () => onInput(section, editor.value));
 
   wrapper.append(note, editor);
+  return wrapper;
+}
+
+function buildViewer({ value }) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "petition-editor-shell";
+
+  const note = document.createElement("div");
+  note.className = "petition-editor-note";
+  note.textContent = "القسم في وضع القراءة، انقر على 'تعديل الاختيار' لإجراء أي تغييرات.";
+
+  const viewer = document.createElement("div");
+  viewer.className = "petition-viewer petition-text markdown-content";
+  viewer.innerHTML = renderMarkdownToHtml(value || "لا يوجد محتوى معروض لهذا القسم بعد.");
+
+  wrapper.append(note, viewer);
   return wrapper;
 }
 
@@ -78,6 +92,8 @@ export function createPetitionComponent(elements, handlers) {
       const isLoadingSection = state.petition.loadingSections[activeTab];
       const activeContent = state.petition[activeTab] || "";
       const hasDirtyActiveSection = state.petition.dirtySections[activeTab];
+      const disabledState = state.petition.isGenerating || state.petition.saveState === "saving";
+      const readonlyState = !state.petition.editMode;
 
       panel.classList.toggle("hidden", !hasPetition && state.currentPhase < 2);
       reviewButton.disabled =
@@ -89,7 +105,7 @@ export function createPetitionComponent(elements, handlers) {
         state.petition.saveState === "saving" ||
         !hasDirtyActiveSection ||
         !activeContent.trim();
-        
+
       editButton.style.display = state.petition.editMode ? "none" : "inline-block";
       saveButton.style.display = state.petition.editMode ? "inline-block" : "none";
 
@@ -110,6 +126,8 @@ export function createPetitionComponent(elements, handlers) {
         statusLabel.textContent = state.petition.saveMessage || "تعذر حفظ التعديل.";
       } else if (hasDirtyActiveSection) {
         statusLabel.textContent = "يوجد تعديل غير محفوظ في هذا القسم.";
+      } else if (readonlyState) {
+        statusLabel.textContent = `عرض منسق لقسم ${sectionLabel(activeTab)}.`;
       } else {
         statusLabel.textContent = `تحرير مباشر لقسم ${sectionLabel(activeTab)}.`;
       }
@@ -124,11 +142,15 @@ export function createPetitionComponent(elements, handlers) {
         return;
       }
 
+      if (readonlyState) {
+        content.replaceChildren();
+        content.appendChild(buildViewer({ value: activeContent }));
+        return;
+      }
+
       const existingEditor = content.querySelector(".petition-editor");
       const currentSection = existingEditor ? existingEditor.getAttribute("aria-label") : null;
       const expectedSectionLabel = sectionLabel(activeTab);
-      const disabledState = state.petition.isGenerating || state.petition.saveState === "saving";
-      const readonlyState = !state.petition.editMode;
 
       if (!existingEditor || currentSection !== expectedSectionLabel) {
         content.replaceChildren();
@@ -137,27 +159,22 @@ export function createPetitionComponent(elements, handlers) {
             value: activeContent,
             section: activeTab,
             disabled: disabledState,
-            readonly: readonlyState,
             onInput: handlers.onContentInput,
           })
         );
-      } else {
-        if (existingEditor.value !== activeContent) {
-           existingEditor.value = activeContent;
-        }
-        existingEditor.disabled = disabledState;
-        existingEditor.readOnly = readonlyState;
-        
-        const note = content.querySelector(".petition-editor-note");
-        if (note) {
-          if (disabledState) {
-            note.textContent = "يتم تجهيز أو حفظ هذا القسم الآن...";
-          } else if (readonlyState) {
-            note.textContent = "القسم في وضع القراءة، انقر على 'تعديل الاختيار' لإجراء أي تغييرات.";
-          } else {
-            note.textContent = "وضع التعديل مفعل. لا تنسَ النقر على 'حفظ' بعد الانتهاء.";
-          }
-        }
+        return;
+      }
+
+      if (existingEditor.value !== activeContent) {
+        existingEditor.value = activeContent;
+      }
+      existingEditor.disabled = disabledState;
+
+      const note = content.querySelector(".petition-editor-note");
+      if (note) {
+        note.textContent = disabledState
+          ? "يتم تجهيز أو حفظ هذا القسم الآن..."
+          : "وضع التعديل مفعل. لا تنسَ النقر على 'حفظ' بعد الانتهاء.";
       }
     },
   };

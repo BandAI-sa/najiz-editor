@@ -461,6 +461,11 @@ body {
   border-style: dashed;
 }
 
+.message-body {
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+
 .message-meta {
   display: flex;
   justify-content: space-between;
@@ -755,11 +760,32 @@ body {
   color: #958878;
 }
 
+.petition-viewer {
+  min-height: 340px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(13, 92, 99, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+}
+
 .review-summary {
   display: flex;
   gap: 18px;
   align-items: center;
   margin-bottom: 18px;
+}
+
+.review-text {
+  display: grid;
+  gap: 10px;
+}
+
+.review-recommendation {
+  font-weight: 800;
+}
+
+.review-summary-body {
+  color: var(--color-muted);
 }
 
 .score-circle {
@@ -828,6 +854,89 @@ body {
 .alert-card p {
   margin: 8px 0 0;
   line-height: 1.8;
+}
+
+.review-issue-label {
+  display: block;
+  margin-top: 10px;
+}
+
+.progress-copy {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+
+.suggestion-reason {
+  color: var(--color-ink);
+}
+
+.markdown-content {
+  line-height: 1.9;
+  white-space: normal;
+}
+
+.markdown-content > :first-child {
+  margin-top: 0;
+}
+
+.markdown-content > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  margin: 0 0 10px;
+  color: var(--color-primary-strong);
+  line-height: 1.45;
+}
+
+.markdown-content h1 {
+  font-size: 1.45rem;
+}
+
+.markdown-content h2 {
+  font-size: 1.18rem;
+}
+
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  font-size: 1rem;
+}
+
+.markdown-content p {
+  margin: 0 0 10px;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 0 0 12px;
+  padding-inline-start: 22px;
+}
+
+.markdown-content li {
+  margin-bottom: 6px;
+}
+
+.markdown-content code {
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(13, 92, 99, 0.08);
+  color: var(--color-primary-strong);
+  font-size: 0.9em;
+}
+
+.markdown-content hr {
+  border: 0;
+  border-top: 1px solid rgba(13, 92, 99, 0.14);
+  margin: 14px 0;
 }
 
 .hidden {
@@ -1254,7 +1363,8 @@ body {
     justify-content: center;
   }
 
-  .petition-editor {
+  .petition-editor,
+  .petition-viewer {
     min-height: 280px;
   }
 
