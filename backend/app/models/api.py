@@ -130,6 +130,14 @@ class AdminPetitionDetailResponse(BaseSchema):
     session: Session | None = None
 
 
+class AdminDeletePetitionResponse(BaseSchema):
+    petition_id: str
+    session_id: str
+    remaining_petitions_in_session: int
+    deleted_session: bool = False
+    deleted_message_count: int = 0
+
+
 class AgentResponse(BaseSchema):
     session_id: str
     reply: str

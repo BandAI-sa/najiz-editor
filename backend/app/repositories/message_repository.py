@@ -46,3 +46,14 @@ class MessageRepository:
             cursor = self.manager.database["messages"].find({"session_id": session_id}).sort("created_at", 1)
             rows = await cursor.to_list(length=None)
         return [MessageRecord.model_validate(row) for row in rows]
+
+    async def delete_by_session(self, session_id: str) -> int:
+        if self.manager.database is None:
+            before_count = len(self.manager.memory_store.messages)
+            self.manager.memory_store.messages = [
+                item for item in self.manager.memory_store.messages if item["session_id"] != session_id
+            ]
+            return before_count - len(self.manager.memory_store.messages)
+
+        result = await self.manager.database["messages"].delete_many({"session_id": session_id})
+        return int(result.deleted_count)

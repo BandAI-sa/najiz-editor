@@ -182,4 +182,8 @@ export const adminAPI = {
     return apiCall(`/admin/petitions${suffix}`);
   },
   getPetition: (petitionId) => apiCall(`/admin/petitions/${petitionId}`),
+  deletePetition: (petitionId) =>
+    apiCall(`/admin/petitions/${petitionId}`, {
+      method: "DELETE",
+    }),
 };

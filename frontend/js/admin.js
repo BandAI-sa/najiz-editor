@@ -25,8 +25,10 @@ const state = {
   detail: null,
   listError: "",
   detailError: "",
+  flashMessage: null,
   loadingList: false,
   loadingDetail: false,
+  deletingId: "",
   filters: {
     q: "",
     status: "",
@@ -70,6 +72,11 @@ function formatPhase(value) {
   return labels[value] || `المرحلة ${value}`;
 }
 
+function buildInlineMessage(message, tone = "") {
+  const toneClass = tone ? ` ${tone}` : "";
+  return `<div class="admin-inline-message${toneClass}">${escapeHtml(message)}</div>`;
+}
+
 function renderMetrics() {
   const stats = state.stats || {
     total_petitions: 0,
@@ -102,18 +109,23 @@ function renderListMeta() {
 }
 
 function renderListStatus() {
+  const messages = [];
+
+  if (state.flashMessage?.text) {
+    messages.push(buildInlineMessage(state.flashMessage.text, state.flashMessage.tone));
+  }
+
   if (state.listError) {
-    elements.listStatus.innerHTML = `<div class="admin-inline-message error">${escapeHtml(state.listError)}</div>`;
+    messages.push(buildInlineMessage(state.listError, "error"));
+    elements.listStatus.innerHTML = messages.join("");
     return;
   }
 
   if (!state.loadingList && state.items.length === 0) {
-    elements.listStatus.innerHTML =
-      '<div class="admin-inline-message">لا توجد صحف مطابقة للبحث الحالي. جرّب توسيع نطاق البحث أو إزالة الفلاتر.</div>';
-    return;
+    messages.push(buildInlineMessage("لا توجد صحف مطابقة للبحث الحالي. جرّب توسيع نطاق البحث أو إزالة الفلاتر."));
   }
 
-  elements.listStatus.innerHTML = "";
+  elements.listStatus.innerHTML = messages.join("");
 }
 
 function buildTag(label, tone = "") {
@@ -266,6 +278,7 @@ function renderDetail() {
     label,
     typeof value === "string" ? value : JSON.stringify(value),
   ]);
+  const isDeleting = state.deletingId === petition.petition_id;
 
   elements.detail.innerHTML = `
     <div class="admin-detail-header">
@@ -281,6 +294,12 @@ function renderDetail() {
         <a class="btn btn-primary" href="${escapeHtml(
           petitionsAPI.exportPdfUrl(petition.session_id)
         )}" target="_blank" rel="noopener noreferrer">فتح PDF</a>
+        <button
+          type="button"
+          class="btn btn-danger"
+          data-delete-petition-id="${escapeHtml(petition.petition_id)}"
+          ${isDeleting ? "disabled" : ""}
+        >${isDeleting ? "جارٍ الحذف..." : "حذف من قاعدة البيانات"}</button>
       </div>
     </div>
 
@@ -406,6 +425,52 @@ async function loadList() {
   renderDetail();
 }
 
+async function deletePetition(petitionId) {
+  if (!petitionId || state.deletingId) {
+    return;
+  }
+
+  const petition = state.detail?.petition?.petition_id === petitionId ? state.detail.petition : null;
+  const session = state.detail?.petition?.petition_id === petitionId ? state.detail.session : null;
+  const title = session?.classification?.case_title || petition?.petition_id || petitionId;
+  const confirmed = window.confirm(
+    `سيتم حذف "${title}" من قاعدة البيانات نهائيًا.\n\nإذا كانت هذه آخر صحيفة في الجلسة، فسيتم حذف الجلسة ورسائلها المرتبطة أيضًا.\n\nهل تريد المتابعة؟`
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  state.deletingId = petitionId;
+  state.flashMessage = null;
+  renderDetail();
+  renderListStatus();
+
+  try {
+    const result = await adminAPI.deletePetition(petitionId);
+    state.flashMessage = {
+      tone: "success",
+      text: result.deleted_session
+        ? "تم حذف الصحيفة بنجاح، ولأنها كانت آخر سجل في جلستها تم حذف الجلسة والرسائل المرتبطة بها."
+        : "تم حذف الصحيفة بنجاح من قاعدة البيانات.",
+    };
+    if (state.selectedId === petitionId) {
+      state.selectedId = "";
+      state.detail = null;
+    }
+    await loadList();
+  } catch (error) {
+    state.flashMessage = {
+      tone: "error",
+      text: error.message || "تعذر حذف الصحيفة من قاعدة البيانات.",
+    };
+    renderListStatus();
+  } finally {
+    state.deletingId = "";
+    renderDetail();
+    renderListStatus();
+  }
+}
+
 function scheduleSearch() {
   window.clearTimeout(searchTimer);
   searchTimer = window.setTimeout(() => {
@@ -448,6 +513,16 @@ function attachEvents() {
 
     const petitionId = target.getAttribute("data-petition-id");
     loadDetail(petitionId).catch(() => {});
+  });
+
+  elements.detail.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-delete-petition-id]");
+    if (!target) {
+      return;
+    }
+
+    const petitionId = target.getAttribute("data-delete-petition-id");
+    deletePetition(petitionId).catch(() => {});
   });
 }
 
