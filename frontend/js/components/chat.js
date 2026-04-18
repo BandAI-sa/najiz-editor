@@ -62,6 +62,8 @@ function buildPendingCard(message) {
 }
 
 export function createChatComponent({ container, form, input, submitButton, onSubmit }) {
+  const defaultPlaceholder = input.getAttribute("placeholder") || "";
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (submitButton?.disabled) {
@@ -84,10 +86,15 @@ export function createChatComponent({ container, form, input, submitButton, onSu
       if (state.loading && state.loadingMessage) {
         container.appendChild(buildPendingCard(state.loadingMessage));
       }
+      const awaitingDraftRole = state.currentStep === "select_petition_role";
+      const disabled = state.loading || awaitingDraftRole;
       form.setAttribute("aria-busy", state.loading ? "true" : "false");
-      input.disabled = state.loading;
+      input.disabled = disabled;
+      input.placeholder = awaitingDraftRole
+        ? "اختر أصيل أو وكيل للمتابعة إلى الصياغة."
+        : defaultPlaceholder;
       if (submitButton) {
-        submitButton.disabled = state.loading;
+        submitButton.disabled = disabled;
       }
       container.scrollTop = container.scrollHeight;
     },

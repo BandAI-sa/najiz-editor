@@ -13,6 +13,7 @@ from app.services.agent.phase2_drafter import Phase2DrafterService
 from app.services.agent.phase2_evidence import Phase2EvidenceService
 from app.services.data.normalization import ClassificationNormalizer
 from app.services.legal.store import LegalReferenceStore
+from app.utils.petition_text import sanitize_petition_text
 
 
 class DummyLLM:
@@ -58,12 +59,39 @@ async def test_phase2_facts_fallback_is_structured_and_practical():
         },
         metadata={},
     )
-    facts = await service._build_facts(session, case_context)
+    facts = await service._build_facts(session, case_context, "principal")
 
     assert "أولًا: بيانات الأطراف بحسب المتاح" in facts.content
     assert "ثالثًا: وقائع الدعوى" in facts.content
     assert "رابعًا: المستندات والقرائن المرتبطة بالوقائع" in facts.content
     assert "إقامة حارس قضائي" in facts.content
+
+
+@pytest.mark.asyncio
+async def test_phase2_agent_fallback_adds_representation_requirements():
+    repo = _repo()
+    selection = await repo.resolve_selection("case-01-01-001")
+    case_context = await repo.get_case("case-01-01-001")
+    service = Phase2DrafterService(
+        repo=None,
+        classification_repo=repo,
+        evidence_service=Phase2EvidenceService(_legal_store(), DummyLLM()),
+        llm=DummyLLM(),
+    )
+
+    session = Session(
+        classification=selection,
+        extracted_data={
+            "بيانات المدعي": "نواف بن خالد - هوية 123",
+            "بيانات المدعى عليه": "ورثة متنازع عليهم",
+        },
+        metadata={},
+    )
+    facts = await service._build_facts(session, case_context, "agent")
+
+    assert "صفة التقديم: وكيل عن المدعي" in facts.content
+    assert "بيانات الوكيل" in facts.content
+    assert "رقم الوكالة" in facts.content
 
 
 @pytest.mark.asyncio
@@ -87,3 +115,10 @@ async def test_phase2_evidence_fallback_links_documents_and_procedure():
     assert "ثانيًا: الأسانيد النظامية والإجرائية" in section.content
     assert "رابعًا: قاعدة الربط بين الطلب والسبب والدليل" in section.content
     assert "[يُوصى بالتحقق]" in section.content
+
+
+def test_phase2_sanitizer_removes_unwanted_lawyer_intro():
+    cleaned = sanitize_petition_text("بصفتي محاميًا سعوديًا، أتقدم بهذه الدعوى للمطالبة بحق موكلي.")
+
+    assert "محامي" not in cleaned
+    assert "أتقدم بهذه الدعوى" in cleaned

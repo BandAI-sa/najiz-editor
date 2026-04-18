@@ -1,6 +1,7 @@
 import { configAPI } from "./api.js";
 import { createChatComponent } from "./components/chat.js";
 import { createClassificationComponent } from "./components/classification.js";
+import { createDraftRoleComponent } from "./components/draft-role.js";
 import { createLLMConfigComponent } from "./components/llm-config.js";
 import { createPetitionComponent } from "./components/petition.js";
 import { createProgressComponent } from "./components/progress.js";
@@ -199,6 +200,16 @@ function resolveModel(provider, requestedModel) {
   return requestedModel?.trim() || provider?.default_model || "";
 }
 
+function resolveDraftRoleLabel(role) {
+  if (role === "agent") {
+    return "وكيل";
+  }
+  if (role === "principal") {
+    return "أصيل";
+  }
+  return "";
+}
+
 function seedWelcomeMessage() {
   updateState((draft) => {
     if (draft.chat.length > 0) {
@@ -335,6 +346,22 @@ const classificationComponent = createClassificationComponent(
   }
 );
 
+const draftRoleComponent = createDraftRoleComponent(
+  {
+    panel: document.getElementById("draft-role-panel"),
+    options: document.getElementById("draft-role-options"),
+    hint: document.getElementById("draft-role-hint"),
+  },
+  {
+    onSelect: (role) =>
+      updateState((draft) => {
+        draft.petition.roleSelection = role;
+        draft.petition.saveState = "idle";
+        draft.petition.saveMessage = "";
+      }),
+  }
+);
+
 const progressComponent = createProgressComponent({
   label: document.getElementById("progress-label"),
   bar: document.getElementById("progress-bar"),
@@ -396,6 +423,7 @@ subscribe((state) => {
   llmConfigComponent.render(state);
   chatComponent.render(state);
   classificationComponent.render(state);
+  draftRoleComponent.render(state);
   progressComponent.render(state);
   petitionComponent.render(state);
   reviewComponent.render(state);
@@ -408,6 +436,15 @@ subscribe((state) => {
         : "مرحلة المراجعة";
 
   draftButton.disabled = state.currentStep !== "go_to_phase2" && state.currentPhase < 2;
+  if (state.currentStep === "select_petition_role") {
+    phaseTitle.textContent = "مرحلة اختيار صيغة الدعوى";
+    draftButton.textContent = state.petition.roleSelection
+      ? `بدء الصياغة بصيغة ${resolveDraftRoleLabel(state.petition.roleSelection)}`
+      : "اختر نوع الصياغة أولًا";
+    draftButton.disabled = !state.petition.roleSelection;
+  } else {
+    draftButton.textContent = "بدء الصياغة";
+  }
   document.getElementById("phase2-panel").classList.toggle(
     "hidden",
     state.currentPhase < 2 &&

@@ -98,10 +98,10 @@ export const agentAPI = {
       method: "POST",
       body: JSON.stringify({ session_id: sessionId, message, phase: 1 }),
     }),
-  draft: (sessionId) =>
+  draft: (sessionId, petitionRole) =>
     apiCall("/agent/draft", {
       method: "POST",
-      body: JSON.stringify({ session_id: sessionId }),
+      body: JSON.stringify({ session_id: sessionId, petition_role: petitionRole || undefined }),
     }),
   review: (sessionId) =>
     apiCall("/agent/review", {

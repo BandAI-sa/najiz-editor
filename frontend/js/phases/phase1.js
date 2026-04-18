@@ -14,10 +14,11 @@ function buildLoadingMessage(state) {
 }
 
 function applyAgentResponse(response) {
+  const awaitingDraftRole = response.next_action === "go_to_phase2" && !response.petition;
   updateState((draft) => {
     draft.sessionId = response.session_id;
-    draft.currentPhase = response.phase;
-    draft.currentStep = response.next_action;
+    draft.currentPhase = awaitingDraftRole ? 1 : response.phase;
+    draft.currentStep = awaitingDraftRole ? "select_petition_role" : response.next_action;
     draft.classification.suggestions = response.suggestions || [];
     if (response.classification) {
       draft.classification.selectedPath = response.classification.case_path.join(" > ");
@@ -25,11 +26,18 @@ function applyAgentResponse(response) {
     draft.interview.extractedData = response.extracted_data || {};
     draft.interview.missingFields = response.flags?.missing_fields || [];
     draft.interview.completion = response.completion_percentage ?? 0;
-    draft.interview.currentPrompt = response.reply;
+    draft.interview.currentPrompt = awaitingDraftRole
+      ? "هل تريد صياغة الدعوى أصيل أم وكيل؟"
+      : response.reply;
     draft.flags.needsHumanReview = response.flags?.needs_human_review || false;
     draft.flags.criticalIssues = response.flags?.critical_issues || [];
     draft.flags.guardIssues = response.flags?.guard_issues || [];
-    if (response.phase >= 2 || response.next_action === "go_to_phase2") {
+    if (awaitingDraftRole) {
+      draft.petition.roleSelection = "";
+    } else if (response.phase < 2) {
+      draft.petition.roleSelection = "";
+    }
+    if (!awaitingDraftRole && response.phase >= 2) {
       draft.currentPhase = 2;
     }
   });
@@ -136,6 +144,7 @@ export function createPhase1Controller() {
         draft.classification.selectedPath = session.classification.case_path.join(" > ");
         draft.interview.missingFields = session.flags.missing_fields || [];
         draft.interview.currentPrompt = session.metadata.pending_prompt || "تم اعتماد التصنيف اليدوي.";
+        draft.petition.roleSelection = "";
       });
       pushChatMessage("assistant", session.metadata.pending_prompt || "تم اعتماد التصنيف اليدوي.");
     },

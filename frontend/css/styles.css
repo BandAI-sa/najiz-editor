@@ -558,6 +558,69 @@ body {
   gap: 12px;
 }
 
+.draft-role-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(13, 92, 99, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(246, 250, 248, 0.86));
+}
+
+.draft-role-copy h3 {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.draft-role-hint {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  line-height: 1.8;
+}
+
+.draft-role-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.draft-role-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(13, 92, 99, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--color-ink);
+  text-align: right;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.draft-role-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(13, 92, 99, 0.28);
+}
+
+.draft-role-card.is-active {
+  border-color: rgba(201, 113, 43, 0.36);
+  background: rgba(201, 113, 43, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(201, 113, 43, 0.14);
+}
+
+.draft-role-card strong {
+  font-size: 1rem;
+}
+
+.draft-role-card span {
+  color: var(--color-muted);
+  line-height: 1.8;
+}
+
 .suggestion-card {
   padding: 16px;
   border-radius: 18px;
