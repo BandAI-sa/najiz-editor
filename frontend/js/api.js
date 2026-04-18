@@ -165,3 +165,21 @@ export const petitionsAPI = {
   exportMdUrl: (sessionId) => `${BASE_URL}/petitions/${sessionId}/export/md`,
   exportPdfUrl: (sessionId) => `${BASE_URL}/petitions/${sessionId}/export/pdf`,
 };
+
+export const adminAPI = {
+  listPetitions: ({ q = "", status = "", limit } = {}) => {
+    const params = new URLSearchParams();
+    if (q.trim()) {
+      params.set("q", q.trim());
+    }
+    if (status) {
+      params.set("status", status);
+    }
+    if (Number.isInteger(limit)) {
+      params.set("limit", String(limit));
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return apiCall(`/admin/petitions${suffix}`);
+  },
+  getPetition: (petitionId) => apiCall(`/admin/petitions/${petitionId}`),
+};

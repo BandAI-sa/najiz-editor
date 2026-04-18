@@ -53,6 +53,7 @@ class MongoManager:
 
         await self.database["petitions"].create_index([("session_id", ASCENDING), ("version", DESCENDING)])
         await self.database["petitions"].create_index([("petition_id", ASCENDING)], unique=True)
+        await self.database["petitions"].create_index([("updated_at", DESCENDING)])
 
     async def seed_catalog(self, catalog: ClassificationCatalog) -> None:
         flat_docs = [node.model_dump(mode="json") for node in catalog.flat_nodes]

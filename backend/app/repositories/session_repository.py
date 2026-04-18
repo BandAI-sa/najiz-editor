@@ -37,6 +37,20 @@ class SessionRepository:
             return None
         return self._from_document(document)
 
+    async def get_many_by_ids(self, session_ids: list[str]) -> list[Session]:
+        if not session_ids:
+            return []
+        if self.manager.database is None:
+            documents = [
+                self.manager.memory_store.sessions[session_id]
+                for session_id in session_ids
+                if session_id in self.manager.memory_store.sessions
+            ]
+        else:
+            cursor = self.manager.database["sessions"].find({"session_id": {"$in": session_ids}})
+            documents = await cursor.to_list(length=len(session_ids))
+        return [self._from_document(document) for document in documents]
+
     async def update_extracted_data(
         self,
         session_id: str,
