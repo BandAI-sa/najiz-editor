@@ -1,4 +1,5 @@
 import { adminAPI, petitionsAPI } from "./api.js";
+import { escapeHtml, renderMarkdownToHtml } from "./utils/markdown.js";
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -33,19 +34,6 @@ const state = {
 };
 
 let searchTimer = null;
-
-function escapeHtml(value = "") {
-  return String(value).replace(/[&<>"']/g, (character) => {
-    const entities = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;",
-    };
-    return entities[character] || character;
-  });
-}
 
 function formatDate(value) {
   if (!value) {
@@ -220,8 +208,9 @@ function renderReviewIssues(issues = []) {
           (issue) => `
             <article class="review-issue ${escapeHtml(issue.severity === "حرج" ? "critical" : issue.severity === "تنبيه" ? "warning" : "suggestion")}">
               <strong class="review-issue-title">${escapeHtml(issue.category || issue.severity || "ملاحظة")}</strong>
-              <p>${escapeHtml(issue.description || "")}</p>
-              <p><strong>المعالجة المقترحة:</strong> ${escapeHtml(issue.suggestion || "لا توجد توصية إضافية.")}</p>
+              <div class="markdown-content">${renderMarkdownToHtml(issue.description || "لا يوجد وصف إضافي.")}</div>
+              <strong class="review-issue-label">المعالجة المقترحة</strong>
+              <div class="markdown-content">${renderMarkdownToHtml(issue.suggestion || "لا توجد توصية إضافية.")}</div>
             </article>
           `
         )
@@ -319,24 +308,24 @@ function renderDetail() {
       <div class="admin-text-grid">
         <article class="admin-text-block">
           <h4>${escapeHtml(petition.facts.title || "الوقائع")}</h4>
-          <p class="petition-text">${escapeHtml(petition.facts.content || "لا توجد وقائع معروضة.")}</p>
+          <div class="petition-text markdown-content">${renderMarkdownToHtml(petition.facts.content || "لا توجد وقائع معروضة.")}</div>
         </article>
         <article class="admin-text-block">
           <h4>${escapeHtml(petition.evidence.title || "الأسانيد")}</h4>
-          <p class="petition-text">${escapeHtml(petition.evidence.content || "لا توجد أسانيد معروضة.")}</p>
+          <div class="petition-text markdown-content">${renderMarkdownToHtml(petition.evidence.content || "لا توجد أسانيد معروضة.")}</div>
         </article>
         <article class="admin-text-block">
           <h4>${escapeHtml(petition.requests.title || "الطلبات")}</h4>
-          <p class="petition-text">${escapeHtml(petition.requests.content || "لا توجد طلبات معروضة.")}</p>
+          <div class="petition-text markdown-content">${renderMarkdownToHtml(petition.requests.content || "لا توجد طلبات معروضة.")}</div>
         </article>
       </div>
     </section>
 
     <section class="admin-section">
       <h3>المراجعة القانونية</h3>
-      <p class="admin-review-summary">${escapeHtml(
+      <div class="admin-review-summary markdown-content">${renderMarkdownToHtml(
         petition.review_report?.summary || "لم يتم تسجيل ملخص مراجعة لهذه الصحيفة بعد."
-      )}</p>
+      )}</div>
       ${renderReviewIssues(petition.review_report?.issues || [])}
     </section>
   `;

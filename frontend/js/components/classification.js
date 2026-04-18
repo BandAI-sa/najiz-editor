@@ -1,3 +1,5 @@
+import { renderMarkdownToHtml } from "../utils/markdown.js";
+
 function fillSelect(select, items, placeholder) {
   select.replaceChildren();
   const initial = document.createElement("option");
@@ -25,8 +27,9 @@ function buildSuggestionCard(suggestion, index, onSelect) {
     suggestion.confidence * 100
   )}%`;
 
-  const reason = document.createElement("p");
-  reason.textContent = suggestion.rationale;
+  const reason = document.createElement("div");
+  reason.className = "suggestion-reason markdown-content";
+  reason.innerHTML = renderMarkdownToHtml(suggestion.rationale);
 
   const button = document.createElement("button");
   button.className = "btn btn-secondary";

@@ -483,7 +483,7 @@ test("renders RTL flow from classification to review and export", async ({ page 
 
   await page.locator("#draft-btn").click();
   await expect(page.locator("#phase2-panel")).toBeVisible();
-  await expect(page.locator("#petition-content .petition-editor")).toHaveValue("وقائع مولدة عبر البث.");
+  await expect(page.locator("#petition-content .petition-viewer")).toContainText("وقائع مولدة عبر البث.");
 
   await page.locator("#review-btn").click();
   await expect(page.locator("#phase3-panel")).toBeVisible();

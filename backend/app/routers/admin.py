@@ -12,13 +12,14 @@ from app.models.api import (
 from app.models.petition import PetitionDraft
 from app.models.session import Session, SessionStatus
 from app.routers.deps import build_dependencies
+from app.utils.markdown import strip_markdown_text
 
 
 router = APIRouter(tags=["admin"])
 
 
 def _build_preview(text: str, max_length: int = 180) -> str:
-    normalized = " ".join((text or "").split())
+    normalized = strip_markdown_text(text)
     if len(normalized) <= max_length:
         return normalized
     return f"{normalized[: max_length - 3].rstrip()}..."
