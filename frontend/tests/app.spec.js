@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+let lastDraftPayload = null;
+
 function mockApi(page) {
   let messageCount = 0;
+  lastDraftPayload = null;
 
   return page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -302,6 +305,7 @@ function mockApi(page) {
     }
 
     if (pathname.endsWith("/api/agent/draft") && method === "POST") {
+      lastDraftPayload = route.request().postDataJSON();
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -479,10 +483,16 @@ test("renders RTL flow from classification to review and export", async ({ page 
 
   await page.locator("#message-input").fill("نواف");
   await page.locator("#send-btn").click();
+  await expect(page.locator("#draft-role-panel")).toBeVisible();
+  await expect(page.locator("#send-btn")).toBeDisabled();
+  await expect(page.locator("#draft-btn")).toBeDisabled();
+
+  await page.getByRole("button", { name: "وكيل" }).click();
   await expect(page.locator("#draft-btn")).toBeEnabled();
 
   await page.locator("#draft-btn").click();
   await expect(page.locator("#phase2-panel")).toBeVisible();
+  expect(lastDraftPayload?.petition_role).toBe("agent");
   await expect(page.locator("#petition-content .petition-viewer")).toContainText("وقائع مولدة عبر البث.");
 
   await page.locator("#review-btn").click();

@@ -36,6 +36,7 @@ const initialState = () => ({
     facts: "",
     evidence: "",
     requests: "",
+    roleSelection: "",
     activeTab: "facts",
     version: 0,
     isGenerating: false,

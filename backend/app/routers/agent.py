@@ -52,7 +52,7 @@ async def draft(payload: DraftRequest, request: Request) -> AgentResponse:
     session = await deps["session_repo"].get_by_id(payload.session_id)
     if session is None:
         raise SessionNotFoundError(payload.session_id)
-    result = await deps["drafter"].draft(session)
+    result = await deps["drafter"].draft(session, petition_role=payload.petition_role)
     await deps["session_repo"].save(session)
     return AgentResponse(
         session_id=session.session_id,

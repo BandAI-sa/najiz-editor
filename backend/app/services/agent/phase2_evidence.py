@@ -6,6 +6,7 @@ from app.models.classification import ClassificationNode, ClassificationSelectio
 from app.models.petition import PetitionSection, PetitionSectionName
 from app.services.legal.store import LegalReferenceStore
 from app.services.llm.base import LLMClient
+from app.utils.petition_text import petition_role_label, sanitize_petition_text
 
 
 class Phase2EvidenceService:
@@ -25,21 +26,24 @@ class Phase2EvidenceService:
         facts_text: str,
         extracted_data: dict,
         case_context: ClassificationNode | None = None,
+        petition_role: str = "principal",
     ) -> PetitionSection:
         verified_lines = self._collect_verified_lines(selection)
         documentary_lines = self._build_documentary_lines(extracted_data, case_context)
-        procedural_lines = self._build_procedural_lines(extracted_data, case_context)
+        procedural_lines = self._build_procedural_lines(extracted_data, case_context, petition_role)
 
         llm_text = await self.llm.generate_text(
             "drafter",
-            instructions=self._evidence_prompt(case_context),
+            instructions=self._evidence_prompt(case_context, petition_role),
             user_input=[
                 {
                     "role": "system",
                     "content": (
-                        "أنت محامٍ سعودي. صغ قسم الأسانيد بحيث يربط كل طلب بسبب ودليل. "
+                        "أنت محرر قانوني متخصص في صياغة صحائف الدعوى السعودية. صغ قسم الأسانيد بحيث يربط كل طلب بسبب ودليل. "
                         "لا تنسب نصًا نظاميًا بوصفه مرجعًا موثقًا إلا إذا ورد في قائمة المراجع الموثقة. "
-                        "أي استناد غير موثق يجب أن يسبق بوسم [يُوصى بالتحقق]."
+                        "أي استناد غير موثق يجب أن يسبق بوسم [يُوصى بالتحقق]. "
+                        "اكتب النص النهائي مباشرة، ولا تذكر نفسك أو مهنتك أو جنسيتك، ولا تستخدم عبارات مثل "
+                        "'بصفتي محاميًا سعوديًا' أو 'كمحام'."
                     ),
                 },
                 {
@@ -53,6 +57,9 @@ class Phase2EvidenceService:
 
                         الوقائع المصاغة:
                         {facts_text}
+
+                        صيغة الصحيفة المختارة:
+                        - النمط: {petition_role_label(petition_role)}
 
                         البيانات المستخرجة:
                         {self._format_extracted_data(extracted_data)}
@@ -72,7 +79,7 @@ class Phase2EvidenceService:
             temperature=self.draft_temperature,
             max_output_tokens=2600,
         )
-        content = llm_text or self._build_fallback(verified_lines, documentary_lines, procedural_lines)
+        content = sanitize_petition_text(llm_text) if llm_text else self._build_fallback(verified_lines, documentary_lines, procedural_lines)
 
         return PetitionSection(
             name=PetitionSectionName.EVIDENCE,
@@ -81,7 +88,12 @@ class Phase2EvidenceService:
             citations=verified_lines,
         )
 
-    def _evidence_prompt(self, case_context: ClassificationNode | None) -> str:
+    def _evidence_prompt(self, case_context: ClassificationNode | None, petition_role: str) -> str:
+        role_guard = (
+            "- صيغة التقديم: أصيل؛ فلا تذكر وكالة أو موكل أو نيابة ما لم تكن ثابتة صراحة في البيانات."
+            if petition_role == "principal"
+            else "- صيغة التقديم: وكيل؛ اذكر التمثيل عن المدعي بعبارات محايدة مثل 'بصفتي وكيلاً عن المدعي' أو 'نيابة عن موكلي' دون أي تعريف مهني زائد."
+        )
         return dedent(
             f"""
             أنت في مرحلة صياغة الأسانيد في صحيفة دعوى سعودية.
@@ -96,6 +108,9 @@ class Phase2EvidenceService:
             4. لا تذكر نصوصًا نظامية على أنها موثقة إلا إذا وردت ضمن المراجع الموثقة.
             5. إذا لم توجد مرجعية موثقة، استخدم الوسم [يُوصى بالتحقق].
             6. اجعل الصياغة عملية وقابلة للاستخدام داخل صحيفة دعوى، وليست شرحًا نظريًا عامًا.
+            7. اكتب الأسانيد النهائية فقط دون أي تمهيد عن دورك أو خبرتك أو مهنتك.
+            8. ممنوع استخدام عبارات مثل: بصفتي محاميًا سعوديًا، كمحامٍ، أو سأقوم بصياغة.
+            9. {role_guard}
 
             قواعد منهجية مهمة:
             - الأسانيد ليست مجرد شعارات، بل مستندات ووقائع ونصوص إجرائية أو نظامية مرتبطة مباشرة بالدعوى.
@@ -165,11 +180,17 @@ class Phase2EvidenceService:
         self,
         extracted_data: dict,
         case_context: ClassificationNode | None,
+        petition_role: str,
     ) -> list[str]:
         lines = [
             "- يجب أن تتضمن الصحيفة بيانات المدعي والمدعى عليه وموضوع الدعوى والطلبات والأسانيد بصورة واضحة.",
             "- يلزم استكمال بيانات الهوية والصفة والعنوان الوطني للمدعي بحسب متطلبات التقديم عبر ناجز.",
         ]
+
+        if petition_role == "principal":
+            lines.append("- تم اختيار الصياغة بصيغة أصيل، لذا لا تذكر وكالة أو موكل أو تمثيل إلا إذا كانت ثابتة في الملف.")
+        else:
+            lines.append("- تم اختيار الصياغة بصيغة وكيل، لذا يجب بيان صفة الوكالة والتحقق من سريانها وصلاحية المرافعة، أو التنبيه إلى نقصها بصيغة [يحتاج استكمال].")
 
         if not any("عنوان" in field for field in extracted_data):
             lines.append("- [يحتاج استكمال] العنوان الوطني أو عنوان الأطراف غير ظاهر في البيانات الحالية.")

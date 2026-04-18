@@ -116,11 +116,15 @@ async def test_full_phase_flow_and_export(client, monkeypatch):
         if answer_response.json()["next_action"] == "go_to_phase2":
             break
 
-    draft_response = await client.post("/api/agent/draft", json={"session_id": session_id})
+    draft_response = await client.post(
+        "/api/agent/draft",
+        json={"session_id": session_id, "petition_role": "agent"},
+    )
     assert draft_response.status_code == 200
     draft_payload = draft_response.json()
     assert draft_payload["petition"]["facts"]["content"]
     assert draft_payload["petition"]["version"] >= 1
+    assert draft_payload["petition"]["metadata"]["petition_role"] == "agent"
 
     update_response = await client.patch(
         f"/api/petitions/{session_id}/sections",

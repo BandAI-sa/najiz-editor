@@ -12,6 +12,12 @@ from app.repositories.petition_repository import PetitionRepository
 from app.services.agent.models import AgentTurnResult
 from app.services.agent.phase2_evidence import Phase2EvidenceService
 from app.services.llm.base import LLMClient
+from app.utils.petition_text import (
+    PETITION_ROLE_META_KEY,
+    normalize_petition_role,
+    petition_role_label,
+    sanitize_petition_text,
+)
 from app.utils.text import chunk_text
 
 
@@ -33,7 +39,7 @@ class Phase2DrafterService:
         self.llm = llm
         self.draft_temperature = draft_temperature
 
-    async def draft(self, session: Session) -> AgentTurnResult:
+    async def draft(self, session: Session, petition_role: str | None = None) -> AgentTurnResult:
         if session.classification is None:
             return AgentTurnResult(
                 reply="لا يمكن بدء الصياغة قبل اعتماد التصنيف.",
@@ -42,15 +48,17 @@ class Phase2DrafterService:
         session.status = SessionStatus.DRAFTING
         session.phase = Phase.TWO
 
+        selected_role = self._resolve_petition_role(session, petition_role)
         case_context = await self.classification_repo.get_case(session.classification.case_id)
-        facts = await self._build_facts(session, case_context)
+        facts = await self._build_facts(session, case_context, selected_role)
         evidence = await self.evidence_service.build(
             selection=session.classification,
             facts_text=facts.content,
             extracted_data=session.extracted_data,
             case_context=case_context,
+            petition_role=selected_role,
         )
-        requests = await self._build_requests(session, case_context, facts.content, evidence.content)
+        requests = await self._build_requests(session, case_context, facts.content, evidence.content, selected_role)
         full_text = self._merge_sections(facts, evidence, requests)
 
         petition = PetitionDraft(
@@ -60,14 +68,18 @@ class Phase2DrafterService:
             evidence=evidence,
             requests=requests,
             full_text=full_text,
-            metadata={"classification": session.classification.model_dump(mode="json")},
+            metadata={
+                "classification": session.classification.model_dump(mode="json"),
+                PETITION_ROLE_META_KEY: selected_role,
+                "petition_role_label": petition_role_label(selected_role),
+            },
         )
         await self.repo.create(petition)
         session.petition_version = petition.version
         session.status = SessionStatus.DRAFT_READY
 
         return AgentTurnResult(
-            reply="تم توليد مسودة الصحيفة بصياغة أقوى ومهيأة للمراجعة والتحسين.",
+            reply=f"تم توليد مسودة الصحيفة بصيغة {petition_role_label(selected_role)} وباتت جاهزة للمراجعة والتحسين.",
             next_action="review_draft",
             petition=petition,
         )
@@ -97,9 +109,9 @@ class Phase2DrafterService:
             petition=petition,
         )
 
-    async def stream(self, session: Session) -> AsyncIterator[dict]:
+    async def stream(self, session: Session, petition_role: str | None = None) -> AsyncIterator[dict]:
         try:
-            result = await self.draft(session)
+            result = await self.draft(session, petition_role=petition_role)
             petition = result.petition
             if petition is None:
                 yield {"type": "error", "message": result.reply}
@@ -136,27 +148,30 @@ class Phase2DrafterService:
         self,
         session: Session,
         case_context: ClassificationNode | None,
+        petition_role: str,
     ) -> PetitionSection:
         llm_text = await self.llm.generate_text(
             "drafter",
-            instructions=self._facts_prompt(case_context),
+            instructions=self._facts_prompt(case_context, petition_role),
             user_input=[
                 {
                     "role": "system",
                     "content": (
-                        "أنت محامٍ سعودي خبير في إعداد صحائف الدعاوى المتوافقة مع نظام المرافعات الشرعية "
-                        "ومسار صحيفة الدعوى في ناجز. اكتب قسم الوقائع فقط دون طلبات أو أسانيد."
+                        "أنت محرر قانوني متخصص في إعداد صحائف الدعاوى السعودية المتوافقة مع مسار صحيفة الدعوى في ناجز. "
+                        "اكتب قسم الوقائع فقط دون طلبات أو أسانيد. أخرج النص النهائي مباشرة، "
+                        "ولا تذكر نفسك أو مهنتك أو جنسيتك، ولا تستخدم عبارات مثل "
+                        "'بصفتي محاميًا سعوديًا' أو 'كمحام'."
                     ),
                 },
                 {
                     "role": "user",
-                    "content": self._build_generation_context(session, case_context),
+                    "content": self._build_generation_context(session, case_context, petition_role),
                 },
             ],
             temperature=self.draft_temperature,
             max_output_tokens=3400,
         )
-        content = llm_text or self._build_facts_fallback(session, case_context)
+        content = sanitize_petition_text(llm_text) if llm_text else self._build_facts_fallback(session, case_context, petition_role)
         return PetitionSection(name=PetitionSectionName.FACTS, title="الوقائع", content=content)
 
     async def _build_requests(
@@ -165,22 +180,25 @@ class Phase2DrafterService:
         case_context: ClassificationNode | None,
         facts_text: str,
         evidence_text: str,
+        petition_role: str,
     ) -> PetitionSection:
         llm_text = await self.llm.generate_text(
             "drafter",
-            instructions=self._requests_prompt(case_context),
+            instructions=self._requests_prompt(case_context, petition_role),
             user_input=[
                 {
                     "role": "system",
                     "content": (
-                        "أنت محامٍ سعودي. صغ قسم الطلبات فقط، بشكل محدد ومباشر ومترابط مع الوقائع "
-                        "والأسانيد، ومن دون مبالغة أو اتهامات إنشائية."
+                        "أنت محرر قانوني متخصص في صحائف الدعوى السعودية. صغ قسم الطلبات فقط، بشكل محدد ومباشر "
+                        "ومترابط مع الوقائع والأسانيد، ومن دون مبالغة أو اتهامات إنشائية. "
+                        "اكتب الطلبات النهائية مباشرة، ولا تذكر نفسك أو مهنتك أو جنسيتك، "
+                        "ولا تستخدم عبارات مثل 'بصفتي محاميًا سعوديًا' أو 'كمحام'."
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"{self._build_generation_context(session, case_context)}\n\n"
+                        f"{self._build_generation_context(session, case_context, petition_role)}\n\n"
                         f"قسم الوقائع المصاغ:\n{facts_text}\n\n"
                         f"قسم الأسانيد المصاغ:\n{evidence_text}"
                     ),
@@ -189,10 +207,11 @@ class Phase2DrafterService:
             temperature=self.draft_temperature,
             max_output_tokens=2200,
         )
-        content = llm_text or self._build_requests_fallback(session, case_context, evidence_text)
+        content = sanitize_petition_text(llm_text) if llm_text else self._build_requests_fallback(session, case_context, evidence_text, petition_role)
         return PetitionSection(name=PetitionSectionName.REQUESTS, title="الطلبات", content=content)
 
-    def _facts_prompt(self, case_context: ClassificationNode | None) -> str:
+    def _facts_prompt(self, case_context: ClassificationNode | None, petition_role: str) -> str:
+        role_rules = self._petition_role_prompt_rules(petition_role)
         return dedent(
             f"""
             أنت في مرحلة صياغة قسم الوقائع في صحيفة دعوى سعودية ستقدَّم عبر ناجز.
@@ -206,6 +225,9 @@ class Phase2DrafterService:
             6. تجنب العبارات الانفعالية، والتكرار، والاتهامات غير اللازمة.
             7. إذا كانت معلومة مهمة غير متوفرة، اذكرها بصيغة حيادية مثل [يحتاج استكمال: العنوان الوطني للمدعي].
             8. اكتب النص العربي الجاهز كما لو كان جزءًا من صحيفة دعوى حقيقية، وليس ملخصًا أو نقاطًا عامة.
+            9. أخرج الوقائع النهائية فقط دون أي تمهيد عن دورك أو خبرتك أو مهنتك.
+            10. ممنوع استخدام عبارات مثل: بصفتي محاميًا سعوديًا، كمحامٍ، أنا محامٍ، أو سأقوم بصياغة الصحيفة.
+            11. {role_rules}
 
             التزامات نظامية وإجرائية يجب استحضارها في الصياغة:
             - الصحيفة السليمة يجب أن تشتمل على بيانات الأطراف، وموضوع الدعوى، والطلبات، والأسانيد.
@@ -234,7 +256,8 @@ class Phase2DrafterService:
             """
         ).strip()
 
-    def _requests_prompt(self, case_context: ClassificationNode | None) -> str:
+    def _requests_prompt(self, case_context: ClassificationNode | None, petition_role: str) -> str:
+        role_rules = self._petition_role_prompt_rules(petition_role)
         return dedent(
             f"""
             أنت في مرحلة صياغة قسم الطلبات في صحيفة دعوى سعودية.
@@ -247,6 +270,9 @@ class Phase2DrafterService:
             5. إذا كان تقدير مبلغ أو وصف معين غير مكتمل فاستخدم [يحتاج استكمال] بدل الاختلاق.
             6. يمكن إضافة طلب المصاريف وأتعاب التقاضي فقط بصياغة تحفظية وعند الملاءمة.
             7. اجعل كل طلب مرقمًا وبلغة تصلح مباشرة للإدراج في صحيفة الدعوى.
+            8. اكتب الطلبات النهائية فقط دون أي تمهيد عن دورك أو خبرتك أو مهنتك.
+            9. ممنوع استخدام عبارات مثل: بصفتي محاميًا سعوديًا، كمحامٍ، أنا محامٍ، أو سأقوم بصياغة الطلبات.
+            10. {role_rules}
 
             صيغة مرجعية مفضلة:
             1. الحكم بـ ...
@@ -270,6 +296,7 @@ class Phase2DrafterService:
         self,
         session: Session,
         case_context: ClassificationNode | None,
+        petition_role: str,
     ) -> str:
         requirements = case_context.requirements if case_context else None
         return dedent(
@@ -281,6 +308,10 @@ class Phase2DrafterService:
 
             وصف الدعوى:
             {case_context.description if case_context else "غير متاح"}
+
+            صيغة الصحيفة المختارة:
+            - النمط: {petition_role_label(petition_role)}
+            - التوجيه: {self._petition_role_context_line(petition_role)}
 
             البيانات المستخرجة من المستخدم:
             {self._format_extracted_data(session.extracted_data)}
@@ -303,8 +334,9 @@ class Phase2DrafterService:
         self,
         session: Session,
         case_context: ClassificationNode | None,
+        petition_role: str,
     ) -> str:
-        parties = self._extract_party_lines(session.extracted_data)
+        parties = self._extract_party_lines(session.extracted_data, petition_role)
         timeline = self._build_timeline_entries(session.extracted_data)
         documents = self._infer_document_lines(session.extracted_data, case_context)
         missing = self._format_missing_fields(session.flags.missing_fields)
@@ -335,9 +367,10 @@ class Phase2DrafterService:
         session: Session,
         case_context: ClassificationNode | None,
         evidence_text: str,
+        petition_role: str,
     ) -> str:
         amount = self._extract_first_value(session.extracted_data, ("مبلغ", "قيمة", "تعويض", "نفقة"))
-        primary_request = self._infer_primary_request(session.classification.case_title, amount)
+        primary_request = self._infer_primary_request(session.classification.case_title, amount, petition_role)
         support_line = self._infer_support_line(case_context)
 
         lines = [
@@ -403,12 +436,17 @@ class Phase2DrafterService:
         return "\n".join(parts) if parts else "- لا توجد ملاحظات إضافية."
 
     @staticmethod
-    def _extract_party_lines(extracted_data: dict) -> str:
+    def _extract_party_lines(extracted_data: dict, petition_role: str) -> str:
         plaintiff = [f"{field}: {value}" for field, value in extracted_data.items() if "مدعي" in field or "طالب" in field]
         defendant = [f"{field}: {value}" for field, value in extracted_data.items() if "مدعى" in field or "مدعي عليه" in field]
         representative = [f"{field}: {value}" for field, value in extracted_data.items() if "وكيل" in field or "ولاية" in field or "صفة" in field]
 
         lines = [
+            (
+                "- صفة التقديم: أصيل عن نفسه، وتبقى الصياغة منسوبة مباشرة إلى المدعي."
+                if petition_role == "principal"
+                else "- صفة التقديم: وكيل عن المدعي، ويجب أن تُصاغ الصحيفة بصيغة تمثيل محايدة دون ذكر مهنة الكاتب."
+            ),
             "بيانات المدعي:",
             *([f"- {item}" for item in plaintiff] or ["- [يحتاج استكمال] الاسم الكامل، الهوية، العنوان الوطني، الصفة."]),
             "بيانات المدعى عليه:",
@@ -416,6 +454,13 @@ class Phase2DrafterService:
         ]
         if representative:
             lines.extend(["بيانات الممثل النظامي أو الوكيل:", *[f"- {item}" for item in representative]])
+        elif petition_role == "agent":
+            lines.extend(
+                [
+                    "بيانات الوكيل:",
+                    "- [يحتاج استكمال] اسم الوكيل، رقم الوكالة، تاريخها، جهة إصدارها، ونص صلاحية المرافعة.",
+                ]
+            )
         return "\n".join(lines)
 
     @staticmethod
@@ -463,19 +508,43 @@ class Phase2DrafterService:
         return None
 
     @staticmethod
-    def _infer_primary_request(case_title: str, amount: str | None) -> str:
+    def _infer_primary_request(case_title: str, amount: str | None, petition_role: str) -> str:
+        beneficiary = "موكلي" if petition_role == "agent" else "المدعي"
         if "تعويض" in case_title:
-            return f"الحكم بإلزام المدعى عليه بتعويض المدعي بمبلغ {amount or '[يحتاج استكمال]'}."
+            return f"الحكم بإلزام المدعى عليه بتعويض {beneficiary} بمبلغ {amount or '[يحتاج استكمال]'}."
         if "نفقة" in case_title:
-            return f"الحكم بإلزام المدعى عليه بالنفقة المستحقة بمقدار {amount or '[يحتاج تقدير/استكمال]' }."
+            return f"الحكم بإلزام المدعى عليه بالنفقة المستحقة لصالح {beneficiary} بمقدار {amount or '[يحتاج تقدير/استكمال]' }."
         if "طلاق" in case_title or "خلع" in case_title or "فسخ" in case_title:
             return f"الحكم بـ {case_title} وما يترتب عليه نظامًا وفق وقائع الدعوى."
         if "حارس" in case_title:
             return "الحكم بإقامة حارس قضائي على المال أو التركة محل النزاع وفق ما يثبت للمحكمة."
-        return f"الحكم للمدعي بما يوافق طبيعة دعوى {case_title} وفق الوقائع الثابتة."
+        return f"الحكم لصالح {beneficiary} بما يوافق طبيعة دعوى {case_title} وفق الوقائع الثابتة."
 
     @staticmethod
     def _infer_support_line(case_context: ClassificationNode | None) -> str:
         if case_context and case_context.requirements and case_context.requirements.attachments:
             return case_context.requirements.attachments[0].name
         return "العقد أو المراسلات أو الهوية أو أي مستند ذي صلة بحسب نوع الدعوى."
+
+    def _resolve_petition_role(self, session: Session, petition_role: str | None) -> str:
+        selected_role = normalize_petition_role(petition_role or session.metadata.get(PETITION_ROLE_META_KEY))
+        session.metadata[PETITION_ROLE_META_KEY] = selected_role
+        return selected_role
+
+    @staticmethod
+    def _petition_role_prompt_rules(petition_role: str) -> str:
+        if petition_role == "agent":
+            return (
+                "صيغة التقديم: وكيل؛ اذكر التمثيل عن المدعي بعبارات محايدة مثل 'بصفتي وكيلاً عن المدعي' أو "
+                "'نيابة عن موكلي' عند الحاجة، مع التنبيه بصيغة [يحتاج استكمال] إذا كانت بيانات الوكالة ناقصة."
+            )
+        return (
+            "صيغة التقديم: أصيل؛ فلا تذكر وكالة أو موكلاً أو تمثيلاً، "
+            "واكتب الصحيفة بصيغة منسوبة مباشرة إلى صاحب الحق نفسه."
+        )
+
+    @staticmethod
+    def _petition_role_context_line(petition_role: str) -> str:
+        if petition_role == "agent":
+            return "الصحيفة مطلوبة بصيغة وكيل عن المدعي وبعبارات تمثيل محايدة دون تعريف مهني."
+        return "الصحيفة مطلوبة بصيغة أصيل عن نفسه دون أي عبارات وكالة أو تمثيل."

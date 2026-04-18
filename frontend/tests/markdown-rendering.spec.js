@@ -439,6 +439,9 @@ test("renders markdown in the main drafting experience", async ({ page }) => {
 
   await page.locator("#message-input").fill("نواف");
   await page.locator("#send-btn").click();
+  await expect(page.locator("#draft-role-panel")).toBeVisible();
+  await page.locator("#draft-role-options .draft-role-card[data-role='principal']").click();
+  await expect(page.locator("#draft-btn")).toBeEnabled();
   await page.locator("#draft-btn").click();
 
   await expect(page.locator("#petition-content .petition-viewer h2")).toContainText("وقائع مرتبة");

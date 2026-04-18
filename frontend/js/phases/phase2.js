@@ -4,11 +4,13 @@ import { getState, pushChatMessage, updateState } from "../state.js";
 function setPetitionFromDraft(petition) {
   updateState((draft) => {
     draft.currentPhase = 2;
+    draft.currentStep = "review_draft";
     draft.petition.petitionId = petition.petition_id;
     draft.petition.version = petition.version;
     draft.petition.facts = petition.facts?.content || "";
     draft.petition.evidence = petition.evidence?.content || "";
     draft.petition.requests = petition.requests?.content || "";
+    draft.petition.roleSelection = petition.metadata?.petition_role || draft.petition.roleSelection;
     draft.petition.isGenerating = false;
     draft.petition.saveState = "idle";
     draft.petition.saveMessage = "";
@@ -126,9 +128,17 @@ export function createPhase2Controller() {
       if (!state.sessionId) {
         return;
       }
+      if (!state.petition.roleSelection) {
+        updateState((draft) => {
+          draft.petition.saveState = "error";
+          draft.petition.saveMessage = "اختر أولًا ما إذا كانت الصحيفة بصيغة أصيل أو وكيل.";
+        });
+        return;
+      }
 
       updateState((draft) => {
         draft.currentPhase = 2;
+        draft.currentStep = "drafting";
         draft.petition.facts = "";
         draft.petition.evidence = "";
         draft.petition.requests = "";
@@ -148,10 +158,13 @@ export function createPhase2Controller() {
           requests: false,
         };
       });
-      pushChatMessage("assistant", "جارٍ إعداد مسودة الصحيفة... قد يستغرق هذا بضع ثوانٍ.");
+      pushChatMessage(
+        "assistant",
+        `جارٍ إعداد مسودة الصحيفة بصيغة ${state.petition.roleSelection === "agent" ? "وكيل" : "أصيل"}... قد يستغرق هذا بضع ثوانٍ.`
+      );
 
       try {
-        const response = await agentAPI.draft(state.sessionId);
+        const response = await agentAPI.draft(state.sessionId, state.petition.roleSelection);
         if (response.petition) {
           setPetitionFromDraft(response.petition);
           pushChatMessage("assistant", response.reply);

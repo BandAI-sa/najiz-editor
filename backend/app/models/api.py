@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -73,6 +73,7 @@ class AgentMessageRequest(BaseSchema):
 
 class DraftRequest(BaseSchema):
     session_id: str
+    petition_role: Literal["principal", "agent"] | None = None
 
 
 class ReviewRequest(BaseSchema):
