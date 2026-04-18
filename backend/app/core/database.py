@@ -41,6 +41,10 @@ class MongoManager:
     async def ensure_indexes(self) -> None:
         if self.database is None:
             return
+        await self._drop_ttl_indexes("sessions")
+        await self._drop_ttl_indexes("messages")
+        await self._drop_ttl_indexes("petitions")
+
         await self.database["classifications"].create_index([("id", ASCENDING)], unique=True)
         await self.database["classifications"].create_index([("path", ASCENDING)])
         await self.database["classifications"].create_index([("title", TEXT)])
@@ -54,6 +58,17 @@ class MongoManager:
         await self.database["petitions"].create_index([("session_id", ASCENDING), ("version", DESCENDING)])
         await self.database["petitions"].create_index([("petition_id", ASCENDING)], unique=True)
         await self.database["petitions"].create_index([("updated_at", DESCENDING)])
+
+    async def _drop_ttl_indexes(self, collection_name: str) -> None:
+        if self.database is None:
+            return
+
+        collection = self.database[collection_name]
+        indexes = await collection.index_information()
+        for index_name, details in indexes.items():
+            if index_name == "_id_" or "expireAfterSeconds" not in details:
+                continue
+            await collection.drop_index(index_name)
 
     async def seed_catalog(self, catalog: ClassificationCatalog) -> None:
         flat_docs = [node.model_dump(mode="json") for node in catalog.flat_nodes]

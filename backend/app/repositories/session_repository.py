@@ -51,6 +51,13 @@ class SessionRepository:
             documents = await cursor.to_list(length=len(session_ids))
         return [self._from_document(document) for document in documents]
 
+    async def delete_by_id(self, session_id: str) -> bool:
+        if self.manager.database is None:
+            return self.manager.memory_store.sessions.pop(session_id, None) is not None
+
+        result = await self.manager.database["sessions"].delete_one({"session_id": session_id})
+        return result.deleted_count > 0
+
     async def update_extracted_data(
         self,
         session_id: str,

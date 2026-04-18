@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, Request
 
 from app.core.exceptions import NajizError
 from app.models.api import (
+    AdminDeletePetitionResponse,
     AdminPetitionDetailResponse,
     AdminPetitionListResponse,
     AdminPetitionStats,
@@ -16,6 +17,10 @@ from app.utils.markdown import strip_markdown_text
 
 
 router = APIRouter(tags=["admin"])
+PETITION_NOT_FOUND_MESSAGE = (
+    "\u0644\u0627 \u062a\u0648\u062c\u062f \u0635\u062d\u064a\u0641\u0629 "
+    "\u0645\u062d\u0641\u0648\u0638\u0629 \u0628\u0647\u0630\u0627 \u0627\u0644\u0645\u0639\u0631\u0651\u0641."
+)
 
 
 def _build_preview(text: str, max_length: int = 180) -> str:
@@ -131,10 +136,39 @@ async def get_admin_petition_detail(petition_id: str, request: Request) -> Admin
     if petition is None:
         raise NajizError(
             code="petition_not_found",
-            message="لا توجد صحيفة محفوظة بهذا المعرّف.",
+            message=PETITION_NOT_FOUND_MESSAGE,
             status_code=404,
             recoverable=False,
         )
 
     session = await deps["session_repo"].get_by_id(petition.session_id)
     return AdminPetitionDetailResponse(petition=petition, session=session)
+
+
+@router.delete("/petitions/{petition_id}", response_model=AdminDeletePetitionResponse)
+async def delete_admin_petition(petition_id: str, request: Request) -> AdminDeletePetitionResponse:
+    deps = build_dependencies(request)
+    petition = await deps["petition_repo"].delete_by_id(petition_id)
+    if petition is None:
+        raise NajizError(
+            code="petition_not_found",
+            message=PETITION_NOT_FOUND_MESSAGE,
+            status_code=404,
+            recoverable=False,
+        )
+
+    remaining_petitions = await deps["petition_repo"].count_by_session(petition.session_id)
+    deleted_session = False
+    deleted_message_count = 0
+
+    if remaining_petitions == 0:
+        deleted_session = await deps["session_repo"].delete_by_id(petition.session_id)
+        deleted_message_count = await deps["message_repo"].delete_by_session(petition.session_id)
+
+    return AdminDeletePetitionResponse(
+        petition_id=petition.petition_id,
+        session_id=petition.session_id,
+        remaining_petitions_in_session=remaining_petitions,
+        deleted_session=deleted_session,
+        deleted_message_count=deleted_message_count,
+    )

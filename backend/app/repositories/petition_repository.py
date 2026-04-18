@@ -55,6 +55,19 @@ class PetitionRepository:
             return None
         return self._from_document(document)
 
+    async def delete_by_id(self, petition_id: str) -> PetitionDraft | None:
+        petition = await self.get_by_id(petition_id)
+        if petition is None:
+            return None
+
+        if self.manager.database is None:
+            self.manager.memory_store.petitions = [
+                row for row in self.manager.memory_store.petitions if row["petition_id"] != petition_id
+            ]
+        else:
+            await self.manager.database["petitions"].delete_one({"petition_id": petition_id})
+        return petition
+
     async def list_all(self, limit: int | None = None) -> list[PetitionDraft]:
         if self.manager.database is None:
             documents = sorted(
@@ -72,6 +85,12 @@ class PetitionRepository:
             else:
                 documents = await cursor.to_list(length=None)
         return [self._from_document(document) for document in documents]
+
+    async def count_by_session(self, session_id: str) -> int:
+        if self.manager.database is None:
+            return sum(1 for row in self.manager.memory_store.petitions if row["session_id"] == session_id)
+
+        return await self.manager.database["petitions"].count_documents({"session_id": session_id})
 
     def _to_document(self, petition: PetitionDraft) -> dict:
         document = petition.model_dump(mode="json")
