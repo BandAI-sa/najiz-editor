@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import Field
@@ -91,6 +92,42 @@ class PetitionSectionUpdateRequest(BaseSchema):
 
 class PetitionResponse(BaseSchema):
     petition: PetitionDraft
+
+
+class AdminPetitionStats(BaseSchema):
+    total_petitions: int
+    total_sessions: int
+    completed_sessions: int
+    average_review_score: int | None = None
+
+
+class AdminPetitionSummary(BaseSchema):
+    petition_id: str
+    session_id: str
+    version: int
+    created_at: datetime
+    updated_at: datetime
+    session_updated_at: datetime | None = None
+    session_status: SessionStatus | None = None
+    phase: int | None = None
+    case_title: str | None = None
+    case_path: list[str] = Field(default_factory=list)
+    review_score: int | None = None
+    issue_count: int = 0
+    extracted_field_count: int = 0
+    message_count: int = 0
+    preview: str = ""
+
+
+class AdminPetitionListResponse(BaseSchema):
+    items: list[AdminPetitionSummary] = Field(default_factory=list)
+    total: int
+    stats: AdminPetitionStats
+
+
+class AdminPetitionDetailResponse(BaseSchema):
+    petition: PetitionDraft
+    session: Session | None = None
 
 
 class AgentResponse(BaseSchema):

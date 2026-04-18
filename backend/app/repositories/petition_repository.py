@@ -55,6 +55,24 @@ class PetitionRepository:
             return None
         return self._from_document(document)
 
+    async def list_all(self, limit: int | None = None) -> list[PetitionDraft]:
+        if self.manager.database is None:
+            documents = sorted(
+                self.manager.memory_store.petitions,
+                key=lambda item: item["updated_at"],
+                reverse=True,
+            )
+            if limit is not None:
+                documents = documents[:limit]
+        else:
+            cursor = self.manager.database["petitions"].find().sort("updated_at", -1)
+            if limit is not None:
+                cursor = cursor.limit(limit)
+                documents = await cursor.to_list(length=limit)
+            else:
+                documents = await cursor.to_list(length=None)
+        return [self._from_document(document) for document in documents]
+
     def _to_document(self, petition: PetitionDraft) -> dict:
         document = petition.model_dump(mode="json")
         sensitive = {

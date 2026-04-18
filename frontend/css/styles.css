@@ -71,6 +71,14 @@ body {
   flex-wrap: wrap;
 }
 
+.llm-status-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .llm-status-kicker {
   padding: 6px 10px;
   border-radius: 999px;
@@ -333,6 +341,13 @@ body {
 
 .hero-badges {
   margin-top: 20px;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .hero-badges span,
@@ -819,6 +834,332 @@ body {
   display: none !important;
 }
 
+.admin-page {
+  min-height: 100vh;
+}
+
+.admin-shell {
+  position: relative;
+  z-index: 1;
+  width: min(1480px, calc(100% - 32px));
+  margin: 24px auto 40px;
+  display: grid;
+  gap: 20px;
+}
+
+.admin-header {
+  display: grid;
+  gap: 22px;
+}
+
+.admin-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.admin-title-block h1 {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.admin-header-copy {
+  max-width: 62ch;
+  margin: 12px 0 0;
+  color: var(--color-muted);
+  line-height: 1.9;
+}
+
+.admin-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.admin-metric {
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid rgba(13, 92, 99, 0.1);
+  display: grid;
+  gap: 8px;
+}
+
+.admin-metric strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.admin-metric-label {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.admin-workspace {
+  display: grid;
+  grid-template-columns: 390px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.admin-sidebar-panel,
+.admin-detail-panel {
+  min-height: 72vh;
+}
+
+.admin-filter-form {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.admin-filter-submit {
+  min-width: 124px;
+}
+
+.admin-list-meta {
+  margin-top: 18px;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.admin-list-status {
+  min-height: 24px;
+  margin-top: 10px;
+}
+
+.admin-inline-message,
+.admin-empty-state {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(13, 92, 99, 0.08);
+  color: var(--color-primary-strong);
+  border: 1px solid rgba(13, 92, 99, 0.12);
+  line-height: 1.7;
+}
+
+.admin-inline-message.error,
+.admin-empty-state.error {
+  background: rgba(178, 65, 52, 0.08);
+  color: var(--color-danger);
+  border-color: rgba(178, 65, 52, 0.16);
+}
+
+.admin-record-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+  max-height: calc(72vh - 170px);
+  overflow: auto;
+  padding-inline-end: 4px;
+}
+
+.admin-record {
+  width: 100%;
+  border: 1px solid rgba(13, 92, 99, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.74);
+  padding: 16px;
+  text-align: right;
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.admin-record:hover,
+.admin-record.is-active {
+  transform: translateY(-1px);
+  border-color: rgba(13, 92, 99, 0.3);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 28px rgba(14, 46, 48, 0.1);
+}
+
+.admin-record-skeleton {
+  cursor: default;
+}
+
+.admin-record-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.admin-record-title {
+  display: block;
+  font-size: 1rem;
+}
+
+.admin-record-subtitle,
+.admin-record-date,
+.admin-record-path {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.admin-record-subtitle {
+  margin-top: 4px;
+}
+
+.admin-record-path,
+.admin-record-preview,
+.admin-review-summary {
+  margin: 0;
+  line-height: 1.8;
+}
+
+.admin-record-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-tag {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(13, 92, 99, 0.08);
+  color: var(--color-primary-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.admin-tag.success {
+  background: rgba(30, 122, 74, 0.12);
+  color: var(--color-success);
+}
+
+.admin-tag.warning {
+  background: rgba(194, 132, 12, 0.12);
+  color: var(--color-warning);
+}
+
+.admin-detail {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-detail-loading {
+  min-height: 52vh;
+  display: grid;
+  place-items: center;
+  gap: 16px;
+}
+
+.admin-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.admin-detail-header h2 {
+  margin: 0;
+}
+
+.admin-detail-path {
+  margin: 10px 0 0;
+  color: var(--color-muted);
+  line-height: 1.8;
+}
+
+.admin-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-section {
+  display: grid;
+  gap: 14px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(13, 92, 99, 0.12);
+}
+
+.admin-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.admin-section h3,
+.admin-info-block h4,
+.admin-text-block h4 {
+  margin: 0;
+}
+
+.admin-section-empty {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.8;
+}
+
+.admin-info-grid,
+.admin-text-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-text-grid {
+  grid-template-columns: 1fr;
+}
+
+.admin-info-block,
+.admin-text-block {
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(13, 92, 99, 0.1);
+  display: grid;
+  gap: 12px;
+}
+
+.admin-keyvals {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-keyval {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(13, 92, 99, 0.08);
+}
+
+.admin-keyval:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.admin-keyval span {
+  color: var(--color-muted);
+}
+
+.admin-review-list {
+  display: grid;
+  gap: 10px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -894,7 +1235,11 @@ body {
   .composer-actions,
   .petition-actions,
   .llm-status-bar,
-  .llm-config-actions {
+  .llm-config-actions,
+  .admin-header-top,
+  .admin-header-actions,
+  .admin-detail-header,
+  .admin-detail-actions {
     flex-direction: column;
     align-items: stretch;
   }
@@ -926,5 +1271,25 @@ body {
 
   .llm-config-overlay {
     padding: 8px;
+  }
+
+  .admin-shell {
+    width: min(100% - 16px, 100%);
+    margin: 8px auto 20px;
+  }
+
+  .admin-metrics,
+  .admin-workspace,
+  .admin-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar-panel,
+  .admin-detail-panel {
+    min-height: auto;
+  }
+
+  .admin-record-list {
+    max-height: none;
   }
 }

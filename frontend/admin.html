@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self' http://localhost:8000 http://127.0.0.1:8000;"
+    />
+    <title>لوحة إدارة الصحف | ناجز</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./css/styles.css" />
+  </head>
+  <body class="admin-page">
+    <div class="page-backdrop" aria-hidden="true"></div>
+
+    <main class="admin-shell" dir="rtl">
+      <section class="panel admin-header">
+        <div class="admin-header-top">
+          <div class="admin-title-block">
+            <p class="eyebrow">Admin Dashboard</p>
+            <h1>لوحة إدارة الصحف المحفوظة</h1>
+            <p class="admin-header-copy">
+              عرض مركزي لكل الصحف المولدة من الجلسات، مع حالة كل جلسة، التصنيف، المراجعة القانونية،
+              وإمكانية فتح تفاصيل الصحيفة دون التأثير على شاشة العمل الرئيسية.
+            </p>
+          </div>
+
+          <div class="admin-header-actions">
+            <a class="btn btn-ghost" href="./index.html">العودة إلى المحرر</a>
+            <button id="admin-refresh-btn" class="btn btn-primary" type="button">تحديث البيانات</button>
+          </div>
+        </div>
+
+        <div class="admin-metrics">
+          <div class="admin-metric">
+            <span class="admin-metric-label">إجمالي الصحف</span>
+            <strong id="metric-total-petitions">--</strong>
+          </div>
+          <div class="admin-metric">
+            <span class="admin-metric-label">الجلسات المرتبطة</span>
+            <strong id="metric-total-sessions">--</strong>
+          </div>
+          <div class="admin-metric">
+            <span class="admin-metric-label">جلسات مكتملة</span>
+            <strong id="metric-completed-sessions">--</strong>
+          </div>
+          <div class="admin-metric">
+            <span class="admin-metric-label">متوسط درجة المراجعة</span>
+            <strong id="metric-average-score">--</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="admin-workspace">
+        <aside class="panel admin-sidebar-panel">
+          <div class="panel-head">
+            <h2>الفهرس التشغيلي</h2>
+            <p>ابحث باسم الدعوى، رقم الجلسة، أو نص الصحيفة، ثم اختر السجل الذي تريد مراجعته.</p>
+          </div>
+
+          <form id="admin-filter-form" class="admin-filter-form" autocomplete="off">
+            <label class="field-label" for="admin-search-input">بحث سريع</label>
+            <input
+              id="admin-search-input"
+              class="select-field"
+              type="search"
+              placeholder="مثال: إقامة حارس قضائي أو رقم الجلسة"
+            />
+
+            <div class="admin-filter-grid">
+              <div>
+                <label class="field-label" for="admin-status-select">حالة الجلسة</label>
+                <select id="admin-status-select" class="select-field">
+                  <option value="">كل الحالات</option>
+                  <option value="NEW">جديدة</option>
+                  <option value="AWAITING_CLASSIFICATION_CONFIRM">بانتظار اعتماد التصنيف</option>
+                  <option value="INTERVIEW">استجواب</option>
+                  <option value="READY_TO_DRAFT">جاهزة للصياغة</option>
+                  <option value="DRAFTING">قيد الصياغة</option>
+                  <option value="DRAFT_READY">مسودة جاهزة</option>
+                  <option value="REVIEW">مراجعة</option>
+                  <option value="COMPLETE">مكتملة</option>
+                </select>
+              </div>
+
+              <button class="btn btn-secondary admin-filter-submit" type="submit">تطبيق</button>
+            </div>
+          </form>
+
+          <div id="admin-list-meta" class="admin-list-meta">جاري تحميل البيانات...</div>
+          <div id="admin-list-status" class="admin-list-status" aria-live="polite"></div>
+          <div id="admin-petition-list" class="admin-record-list" aria-live="polite"></div>
+        </aside>
+
+        <section class="panel admin-detail-panel">
+          <div id="admin-detail" class="admin-detail"></div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./js/admin.js"></script>
+  </body>
+</html>

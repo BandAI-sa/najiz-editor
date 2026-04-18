@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import get_settings
 from app.core.database import MongoManager
 from app.core.exceptions import NajizError
-from app.routers import agent, classifications, config, health, petitions, sessions
+from app.routers import admin, agent, classifications, config, health, petitions, sessions
 from app.services.data.loader import CatalogLoader
 from app.services.legal.store import LegalReferenceStore
 
@@ -80,4 +80,5 @@ def create_app() -> FastAPI:
     app.include_router(sessions.router, prefix="/api/sessions")
     app.include_router(agent.router, prefix="/api/agent")
     app.include_router(petitions.router, prefix="/api/petitions")
+    app.include_router(admin.router, prefix="/api/admin")
     return app
