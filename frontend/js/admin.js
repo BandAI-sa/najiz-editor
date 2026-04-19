@@ -1,10 +1,11 @@
-import { adminAPI, petitionsAPI } from "./api.js";
+import { adminAPI, healthAPI, petitionsAPI } from "./api.js";
 import { escapeHtml, renderMarkdownToHtml } from "./utils/markdown.js";
 
 const SEARCH_DEBOUNCE_MS = 250;
 
 const elements = {
   refreshButton: document.getElementById("admin-refresh-btn"),
+  storageAlert: document.getElementById("admin-storage-alert"),
   filterForm: document.getElementById("admin-filter-form"),
   searchInput: document.getElementById("admin-search-input"),
   statusSelect: document.getElementById("admin-status-select"),
@@ -29,6 +30,7 @@ const state = {
   loadingList: false,
   loadingDetail: false,
   deletingId: "",
+  health: null,
   filters: {
     q: "",
     status: "",
@@ -92,6 +94,24 @@ function renderMetrics() {
     stats.average_review_score === null || stats.average_review_score === undefined
       ? "--"
       : `${stats.average_review_score}%`;
+}
+
+function renderStorageAlert() {
+  if (!elements.storageAlert) {
+    return;
+  }
+
+  if (state.health?.storage !== "memory") {
+    elements.storageAlert.innerHTML = "";
+    elements.storageAlert.classList.add("hidden");
+    return;
+  }
+
+  elements.storageAlert.innerHTML = buildInlineMessage(
+    "التخزين الحالي مؤقت داخل الذاكرة. ستختفي السجلات من لوحة الإدارة بعد أي إعادة تشغيل للتطبيق. تحقق من USE_MEMORY_STORE و MONGODB_URI قبل الاعتماد على الأرشيف.",
+    "warning"
+  );
+  elements.storageAlert.classList.remove("hidden");
 }
 
 function renderListMeta() {
@@ -526,11 +546,25 @@ function attachEvents() {
   });
 }
 
+async function loadHealth() {
+  try {
+    state.health = await healthAPI.get();
+  } catch {
+    state.health = null;
+  } finally {
+    renderStorageAlert();
+  }
+}
+
 initializeFromUrl();
 attachEvents();
 renderMetrics();
+renderStorageAlert();
 renderList();
 renderDetail();
+loadHealth().catch(() => {
+  renderStorageAlert();
+});
 loadList().catch(() => {
   renderMetrics();
   renderList();

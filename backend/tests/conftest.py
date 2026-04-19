@@ -15,6 +15,7 @@ from app.core.config import get_settings
 @pytest.fixture
 def app(monkeypatch):
     monkeypatch.setenv("USE_MEMORY_STORE", "true")
+    monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("APP_ENCRYPTION_KEY", "test-encryption-key")
     monkeypatch.setenv("LLM_ENABLE", "false")
     monkeypatch.setenv("LLM_PROVIDER", "openai")

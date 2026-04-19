@@ -40,6 +40,13 @@ def create_app() -> FastAPI:
             settings.model_for("drafter"),
             settings.model_for("classifier"),
         )
+        if settings.use_memory_store:
+            logger.warning(
+                "USE_MEMORY_STORE is enabled for app_env=%s. Data is ephemeral and admin history will disappear after restarts.",
+                settings.app_env,
+            )
+        else:
+            logger.info("Mongo persistence enabled for database=%s", settings.mongodb_database)
 
         await mongo_manager.connect()
         await mongo_manager.ensure_indexes()

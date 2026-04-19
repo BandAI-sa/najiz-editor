@@ -1030,6 +1030,10 @@ body {
   gap: 22px;
 }
 
+.admin-storage-alert {
+  min-height: 0;
+}
+
 .admin-header-top {
   display: flex;
   justify-content: space-between;
@@ -1141,6 +1145,12 @@ body {
   background: rgba(30, 122, 74, 0.08);
   color: var(--color-success);
   border-color: rgba(30, 122, 74, 0.16);
+}
+
+.admin-inline-message.warning {
+  background: rgba(194, 132, 12, 0.1);
+  color: var(--color-warning);
+  border-color: rgba(194, 132, 12, 0.18);
 }
 
 .admin-record-list {

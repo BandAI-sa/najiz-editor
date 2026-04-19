@@ -3,7 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -136,6 +136,13 @@ class Settings(BaseSettings):
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_database: str = "najiz_legal_agent"
     use_memory_store: bool = False
+    allow_volatile_memory_store: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "ALLOW_VOLATILE_MEMORY_STORE",
+            "allow_volatile_memory_store",
+        ),
+    )
     auto_seed_on_startup: bool = True
 
     llm_provider: Literal["openai", "gemini"] = Field(
@@ -203,6 +210,21 @@ class Settings(BaseSettings):
     classification_data_file: str = "data/najiz-case-classifications-1447.json"
     classification_enrichment_file: str = "data/classification_enrichment.json"
     legal_references_file: str = "legal_references/sources.json"
+
+    @model_validator(mode="after")
+    def validate_storage_settings(self) -> "Settings":
+        normalized_env = self.app_env.strip().lower()
+        if self.use_memory_store and normalized_env not in {"test", "testing"} and not self.allow_volatile_memory_store:
+            raise ValueError(
+                "USE_MEMORY_STORE=true disables Mongo persistence and causes dashboard history to disappear after app restarts. "
+                "Set USE_MEMORY_STORE=false for deployed environments, or explicitly set ALLOW_VOLATILE_MEMORY_STORE=true "
+                "only for intentional ephemeral runs."
+            )
+
+        if not self.use_memory_store and not self.mongodb_uri.strip():
+            raise ValueError("MONGODB_URI is required when USE_MEMORY_STORE=false.")
+
+        return self
 
     @property
     def repo_root(self) -> Path:
