@@ -43,6 +43,7 @@ class PetitionDraft(BaseSchema):
     petition_id: str = Field(default_factory=generate_uuid)
     session_id: str
     version: int
+    model: str | None = None
     facts: PetitionSection
     evidence: PetitionSection
     requests: PetitionSection
