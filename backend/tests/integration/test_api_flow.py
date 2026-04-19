@@ -124,6 +124,7 @@ async def test_full_phase_flow_and_export(client, monkeypatch):
     draft_payload = draft_response.json()
     assert draft_payload["petition"]["facts"]["content"]
     assert draft_payload["petition"]["version"] >= 1
+    assert draft_payload["petition"]["model"] == "gpt-5.4-mini"
     assert draft_payload["petition"]["metadata"]["petition_role"] == "agent"
 
     update_response = await client.patch(
@@ -133,6 +134,7 @@ async def test_full_phase_flow_and_export(client, monkeypatch):
     assert update_response.status_code == 200
     update_payload = update_response.json()["petition"]
     assert update_payload["facts"]["content"] == "\u0648\u0642\u0627\u0626\u0639 \u0645\u0639\u062f\u0644\u0629 \u0644\u0644\u0627\u062e\u062a\u0628\u0627\u0631."
+    assert update_payload["model"] == draft_payload["petition"]["model"]
     assert update_payload["version"] == draft_payload["petition"]["version"] + 1
 
     review_response = await client.post("/api/agent/review", json={"session_id": session_id})
@@ -159,6 +161,7 @@ async def test_full_phase_flow_and_export(client, monkeypatch):
         item for item in admin_list_payload["items"] if item["petition_id"] == petition_id
     )
     assert matching_item["session_id"] == session_id
+    assert matching_item["model"] == "gpt-5.4-mini"
     assert matching_item["case_title"] == "\u0625\u0642\u0627\u0645\u0629 \u062d\u0627\u0631\u0633 \u0642\u0636\u0627\u0626\u064a"
     assert admin_list_payload["stats"]["average_review_score"] == review_payload["review_report"]["completeness_score"]
 
@@ -166,4 +169,5 @@ async def test_full_phase_flow_and_export(client, monkeypatch):
     assert admin_detail_response.status_code == 200
     admin_detail_payload = admin_detail_response.json()
     assert admin_detail_payload["petition"]["petition_id"] == petition_id
+    assert admin_detail_payload["petition"]["model"] == "gpt-5.4-mini"
     assert admin_detail_payload["session"]["session_id"] == session_id

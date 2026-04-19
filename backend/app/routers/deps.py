@@ -80,6 +80,7 @@ def build_dependencies(request: Request):
         evidence_service,
         llm,
         draft_temperature=settings.draft_temperature,
+        draft_model_name=settings.model_for("drafter"),
     )
     reviewer = Phase3ReviewerService(petition_repo, classification_repo)
     guard = GuardChecker(classification_repo, settings.session_turn_limit, settings.dispute_value_threshold)

@@ -106,6 +106,7 @@ class AdminPetitionSummary(BaseSchema):
     petition_id: str
     session_id: str
     version: int
+    model: str | None = None
     created_at: datetime
     updated_at: datetime
     session_updated_at: datetime | None = None

@@ -32,12 +32,14 @@ class Phase2DrafterService:
         evidence_service: Phase2EvidenceService,
         llm: LLMClient,
         draft_temperature: float = 0.4,
+        draft_model_name: str | None = None,
     ):
         self.repo = repo
         self.classification_repo = classification_repo
         self.evidence_service = evidence_service
         self.llm = llm
         self.draft_temperature = draft_temperature
+        self.draft_model_name = draft_model_name
 
     async def draft(self, session: Session, petition_role: str | None = None) -> AgentTurnResult:
         if session.classification is None:
@@ -64,6 +66,7 @@ class Phase2DrafterService:
         petition = PetitionDraft(
             session_id=session.session_id,
             version=session.petition_version + 1,
+            model=self.draft_model_name,
             facts=facts,
             evidence=evidence,
             requests=requests,

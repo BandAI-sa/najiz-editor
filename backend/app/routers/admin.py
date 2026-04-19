@@ -35,6 +35,7 @@ def _match_query(query: str, petition: PetitionDraft, session: Session | None) -
         petition.petition_id,
         petition.session_id,
         str(petition.version),
+        petition.model,
         petition.full_text,
     ]
 
@@ -93,6 +94,7 @@ async def list_admin_petitions(
             petition_id=petition.petition_id,
             session_id=petition.session_id,
             version=petition.version,
+            model=petition.model,
             created_at=petition.created_at,
             updated_at=petition.updated_at,
             session_updated_at=session.updated_at if session is not None else None,
@@ -108,20 +110,22 @@ async def list_admin_petitions(
         )
         items.append(summary)
 
-    if limit is not None:
-        items = items[:limit]
-
     visible_session_ids = {item.session_id for item in items}
     completed_session_ids = {
         item.session_id for item in items if item.session_status == SessionStatus.COMPLETE
     }
     review_scores = [item.review_score for item in items if item.review_score is not None]
     average_review_score = round(sum(review_scores) / len(review_scores)) if review_scores else None
+    total_items = len(items)
+
+    if limit is not None:
+        items = items[:limit]
+
     return AdminPetitionListResponse(
         items=items,
-        total=len(items),
+        total=total_items,
         stats=AdminPetitionStats(
-            total_petitions=len(items),
+            total_petitions=total_items,
             total_sessions=len(visible_session_ids),
             completed_sessions=len(completed_session_ids),
             average_review_score=average_review_score,
