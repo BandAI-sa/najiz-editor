@@ -150,6 +150,12 @@ jobs:
             mv "$tmp_file" .artifacts/deploy.env
           }
 
+          use_memory_store="$(grep '^USE_MEMORY_STORE=' .artifacts/deploy.env | head -n 1 | cut -d= -f2- | tr -d '\r' || true)"
+          if printf '%s' "$use_memory_store" | tr '[:upper:]' '[:lower:]' | grep -qx 'true'; then
+            echo "::error::DEPLOY_ENV_FILE enables USE_MEMORY_STORE=true. This disables Mongo persistence and clears admin history after restarts. Set USE_MEMORY_STORE=false for deployment."
+            exit 1
+          fi
+
           mongodb_uri="$(grep '^MONGODB_URI=' .artifacts/deploy.env | head -n 1 | cut -d= -f2- | tr -d '\r' || true)"
           case "$mongodb_uri" in
             mongodb://localhost*)

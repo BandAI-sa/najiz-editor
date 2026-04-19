@@ -17,7 +17,7 @@ def test_build_openai_client_from_env(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
     client = build_llm_client(settings)
 
     assert isinstance(client, OpenAIResponseClient)
@@ -35,7 +35,7 @@ def test_build_gemini_client_from_env(monkeypatch):
     monkeypatch.setenv("GEMINI_CLASSIFIER_MODEL", "gemini-2.5-flash-lite")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
     client = build_llm_client(settings)
 
     assert isinstance(client, GeminiResponseClient)
@@ -52,7 +52,7 @@ def test_openai_enable_llm_alias_still_supported(monkeypatch):
     monkeypatch.setenv("OPENAI_ENABLE_LLM", "true")
     monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
     assert settings.llm_is_enabled is True
     assert settings.openai_enable_llm is True
@@ -88,7 +88,7 @@ def test_request_headers_override_provider_and_model(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
     request = _build_request(
         settings,
         headers={
@@ -111,7 +111,7 @@ def test_request_override_falls_back_when_provider_is_unavailable(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
     request = _build_request(
         settings,
         headers={
@@ -128,7 +128,7 @@ def test_request_override_falls_back_when_provider_is_unavailable(monkeypatch):
 
 def test_model_catalog_includes_enriched_openai_and_gemini_options(monkeypatch):
     monkeypatch.setenv("APP_ENCRYPTION_KEY", "test-encryption-key")
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
     openai_models = settings.suggested_models_for_provider("openai")
     gemini_models = settings.suggested_models_for_provider("gemini")
@@ -151,7 +151,7 @@ async def test_openai_structured_parse_falls_back_to_text_generation(monkeypatch
     monkeypatch.setenv("LLM_ENABLE", "true")
     monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
 
-    settings = Settings().with_llm_selection("openai", "gpt-5.2-pro")
+    settings = Settings(_env_file=None).with_llm_selection("openai", "gpt-5.2-pro")
     client = OpenAIResponseClient(settings)
 
     async def fake_generate_text(*args, **kwargs):
@@ -216,7 +216,7 @@ async def test_gemini_flash_classifier_disables_dynamic_thinking(monkeypatch):
     monkeypatch.setenv("LLM_ENABLE", "true")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
 
-    settings = Settings().with_llm_selection("gemini", "gemini-2.5-flash")
+    settings = Settings(_env_file=None).with_llm_selection("gemini", "gemini-2.5-flash")
     client = GeminiResponseClient(settings)
     captured: dict[str, object] = {}
 
@@ -254,7 +254,7 @@ async def test_gemini_pro_drafter_uses_bounded_thinking_budget(monkeypatch):
     monkeypatch.setenv("LLM_ENABLE", "true")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
 
-    settings = Settings().with_llm_selection("gemini", "gemini-2.5-pro")
+    settings = Settings(_env_file=None).with_llm_selection("gemini", "gemini-2.5-pro")
     client = GeminiResponseClient(settings)
     captured: dict[str, object] = {}
 
@@ -290,7 +290,7 @@ async def test_gemini_3_flash_uses_thinking_level(monkeypatch):
     monkeypatch.setenv("LLM_ENABLE", "true")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
 
-    settings = Settings().with_llm_selection("gemini", "gemini-3.1-flash-lite")
+    settings = Settings(_env_file=None).with_llm_selection("gemini", "gemini-3.1-flash-lite")
     client = GeminiResponseClient(settings)
     captured: dict[str, object] = {}
 

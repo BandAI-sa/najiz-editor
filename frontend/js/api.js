@@ -66,6 +66,10 @@ export const configAPI = {
   getLLMConfig: () => apiCall("/config/llm"),
 };
 
+export const healthAPI = {
+  get: () => apiCall("/health"),
+};
+
 export const classificationsAPI = {
   getMainClassifications: () => apiCall("/classifications/"),
   getSubs: (mainId) => apiCall(`/classifications/${mainId}/subs`),

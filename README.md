@@ -20,6 +20,12 @@ docker compose up --build
 - Backend: `http://localhost:8000`
 - Frontend: `http://localhost:3000`
 
+## Persistence
+
+- Keep `USE_MEMORY_STORE=false` anywhere the admin dashboard must retain history across restarts.
+- `USE_MEMORY_STORE=true` is for tests or intentionally ephemeral local runs only.
+- `GET /api/health` returns `storage: "mongo"` when persistent Mongo storage is active.
+
 ## LLM Provider Switch
 
 Choose the active model provider from `.env`:
