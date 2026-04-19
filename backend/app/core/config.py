@@ -214,10 +214,11 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_storage_settings(self) -> "Settings":
         normalized_env = self.app_env.strip().lower()
-        if self.use_memory_store and normalized_env not in {"test", "testing"} and not self.allow_volatile_memory_store:
+        protected_envs = {"staging", "stage", "production", "prod"}
+        if self.use_memory_store and normalized_env in protected_envs and not self.allow_volatile_memory_store:
             raise ValueError(
                 "USE_MEMORY_STORE=true disables Mongo persistence and causes dashboard history to disappear after app restarts. "
-                "Set USE_MEMORY_STORE=false for deployed environments, or explicitly set ALLOW_VOLATILE_MEMORY_STORE=true "
+                "Set USE_MEMORY_STORE=false for staging/production environments, or explicitly set ALLOW_VOLATILE_MEMORY_STORE=true "
                 "only for intentional ephemeral runs."
             )
 
