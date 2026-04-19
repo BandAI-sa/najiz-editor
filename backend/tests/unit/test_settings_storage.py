@@ -15,10 +15,10 @@ def test_settings_reject_volatile_memory_store_outside_test_without_opt_in():
         )
 
 
-def test_settings_allow_memory_store_during_tests():
+def test_settings_allow_memory_store_in_development():
     settings = Settings(
         app_encryption_key="test-key-123",
-        app_env="test",
+        app_env="development",
         use_memory_store=True,
     )
 

@@ -40,6 +40,7 @@ jobs:
 
       - name: Run backend tests
         env:
+          APP_ENV: test
           USE_MEMORY_STORE: "true"
           APP_ENCRYPTION_KEY: test-encryption-key
           LLM_ENABLE: "false"
