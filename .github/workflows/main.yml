@@ -149,6 +149,8 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
           DEPLOY_APP_DIR: ${{ vars.DEPLOY_APP_DIR }}
+          BACKEND_PORT: ${{ steps.prep.outputs.backend_port }}
+          FRONTEND_PORT: ${{ steps.prep.outputs.frontend_port }}
           REMOTE_RELEASE: /tmp/najiz-main-deploy-${{ github.run_id }}.tgz
           REMOTE_ENV: /tmp/najiz-main-deploy-${{ github.run_id }}.env
         run: |
@@ -183,6 +185,41 @@ jobs:
 
           cd "\$APP_DIR/app"
           \$COMPOSE_CMD down --remove-orphans || true
+
+          free_port() {
+            port="$1"
+            echo "Ensuring host port $port is available..."
+
+            docker ps --filter "publish=$port" -q | xargs -r docker rm -f || true
+
+            pids="$(ss -ltnpH "sport = :$port" | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)"
+            if [ -n "$pids" ]; then
+              echo "Stopping processes on port $port: $pids"
+              for pid in $pids; do
+                kill -TERM "$pid" || true
+              done
+              sleep 2
+
+              pids="$(ss -ltnpH "sport = :$port" | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | sort -u)"
+              if [ -n "$pids" ]; then
+                echo "Force killing remaining processes on port $port: $pids"
+                for pid in $pids; do
+                  kill -KILL "$pid" || true
+                done
+                sleep 1
+              fi
+            fi
+
+            if ss -ltnpH "sport = :$port" | grep -q .; then
+              echo "Port $port is still allocated after cleanup:"
+              ss -ltnpH "sport = :$port" || true
+              exit 1
+            fi
+          }
+
+          free_port "$BACKEND_PORT"
+          free_port "$FRONTEND_PORT"
+
           \$COMPOSE_CMD up -d --build
           \$COMPOSE_CMD ps
 
