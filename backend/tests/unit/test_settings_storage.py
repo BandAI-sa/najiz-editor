@@ -34,3 +34,38 @@ def test_settings_allow_explicit_opt_in_for_ephemeral_runs():
     )
 
     assert settings.allow_volatile_memory_store is True
+
+
+def test_settings_reject_localhost_mongodb_in_protected_env_without_opt_in():
+    with pytest.raises(ValidationError, match="MONGODB_URI points to localhost"):
+        Settings(
+            app_encryption_key="test-key-123",
+            app_env="staging",
+            use_memory_store=False,
+            mongodb_uri="mongodb://localhost:27017",
+            mongodb_database="najiz_legal_agent_staging",
+        )
+
+
+def test_settings_allow_explicit_opt_in_for_localhost_mongodb_in_protected_env():
+    settings = Settings(
+        app_encryption_key="test-key-123",
+        app_env="staging",
+        use_memory_store=False,
+        mongodb_uri="mongodb://localhost:27017",
+        mongodb_database="najiz_legal_agent_staging",
+        allow_localhost_mongodb_in_protected_env=True,
+    )
+
+    assert settings.allow_localhost_mongodb_in_protected_env is True
+
+
+def test_settings_reject_non_production_database_name_in_production():
+    with pytest.raises(ValidationError, match="staging/test database name"):
+        Settings(
+            app_encryption_key="test-key-123",
+            app_env="production",
+            use_memory_store=False,
+            mongodb_uri="mongodb://host.docker.internal:27017",
+            mongodb_database="najiz_legal_agent_staging",
+        )

@@ -24,6 +24,7 @@ docker compose up --build
 
 - Keep `USE_MEMORY_STORE=false` anywhere the admin dashboard must retain history across restarts.
 - `USE_MEMORY_STORE=true` is for tests or intentionally ephemeral local runs only.
+- Staging/production config now fails fast if `MONGODB_URI` points at `localhost` unless you explicitly opt in with `ALLOW_LOCALHOST_MONGODB_IN_PROTECTED_ENV=true`.
 - `GET /api/health` returns `storage: "mongo"` when persistent Mongo storage is active.
 
 ## LLM Provider Switch
