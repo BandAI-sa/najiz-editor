@@ -156,7 +156,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@"$VPS_HOST" <<EOF
+          remote_deploy_app_dir="$(printf '%q' "${DEPLOY_APP_DIR:-}")"
+          remote_backend_port="$(printf '%q' "$BACKEND_PORT")"
+          remote_frontend_port="$(printf '%q' "$FRONTEND_PORT")"
+          remote_release_path="$(printf '%q' "$REMOTE_RELEASE")"
+          remote_env_path="$(printf '%q' "$REMOTE_ENV")"
+
+          sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@"$VPS_HOST" "DEPLOY_APP_DIR=$remote_deploy_app_dir BACKEND_PORT=$remote_backend_port FRONTEND_PORT=$remote_frontend_port REMOTE_RELEASE=$remote_release_path REMOTE_ENV=$remote_env_path bash -se" <<'EOF'
           set -euo pipefail
 
           export DEBIAN_FRONTEND=noninteractive
@@ -180,11 +186,11 @@ jobs:
           mkdir -p "\$APP_DIR"
           rm -rf "\$APP_DIR/app"
           mkdir -p "\$APP_DIR/app"
-          tar -xzf "$REMOTE_RELEASE" -C "\$APP_DIR/app"
-          cp "$REMOTE_ENV" "\$APP_DIR/app/.env"
+          tar -xzf "$REMOTE_RELEASE" -C "$APP_DIR/app"
+          cp "$REMOTE_ENV" "$APP_DIR/app/.env"
 
-          cd "\$APP_DIR/app"
-          \$COMPOSE_CMD down --remove-orphans || true
+          cd "$APP_DIR/app"
+          $COMPOSE_CMD down --remove-orphans || true
 
           free_port() {
             port="$1"
@@ -220,8 +226,8 @@ jobs:
           free_port "$BACKEND_PORT"
           free_port "$FRONTEND_PORT"
 
-          \$COMPOSE_CMD up -d --build
-          \$COMPOSE_CMD ps
+          $COMPOSE_CMD up -d --build
+          $COMPOSE_CMD ps
 
           rm -f "$REMOTE_RELEASE" "$REMOTE_ENV"
           EOF
@@ -258,7 +264,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@"$VPS_HOST" <<EOF
+          remote_deploy_app_dir="$(printf '%q' "${DEPLOY_APP_DIR:-}")"
+          remote_backend_port="$(printf '%q' "$BACKEND_PORT")"
+
+          sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@"$VPS_HOST" "DEPLOY_APP_DIR=$remote_deploy_app_dir BACKEND_PORT=$remote_backend_port bash -se" <<'EOF'
           set -euo pipefail
 
           APP_DIR="${DEPLOY_APP_DIR:-/opt/najiz-editor/main}"
@@ -280,21 +289,21 @@ jobs:
           echo "== Docker ps =="
           docker ps -a || true
 
-          if [ ! -d "\$APP_DIR/app" ]; then
-            echo "App directory not found: \$APP_DIR/app"
+          if [ ! -d "$APP_DIR/app" ]; then
+            echo "App directory not found: $APP_DIR/app"
             exit 0
           fi
 
-          cd "\$APP_DIR/app"
+          cd "$APP_DIR/app"
 
           echo "== Compose ps =="
-          \$COMPOSE_CMD ps || true
+          $COMPOSE_CMD ps || true
 
           echo "== Backend logs (tail 200) =="
-          \$COMPOSE_CMD logs --tail=200 backend || true
+          $COMPOSE_CMD logs --tail=200 backend || true
 
           echo "== Frontend logs (tail 100) =="
-          \$COMPOSE_CMD logs --tail=100 frontend || true
+          $COMPOSE_CMD logs --tail=100 frontend || true
 
           echo "== Safe env subset =="
           grep -E '^(APP_ENV|USE_MEMORY_STORE|APP_ALLOWED_HOSTS|BACKEND_PORT|FRONTEND_PORT|COMPOSE_PROJECT_NAME)=' .env || true
@@ -303,11 +312,11 @@ jobs:
           ss -ltnp | grep ":$BACKEND_PORT" || true
 
           echo "== Local health probe =="
-          local_status="\$(curl --output /tmp/najiz-health.out --silent --show-error --write-out '%{http_code}' "http://127.0.0.1:$BACKEND_PORT/api/health" || true)"
-          echo "Local health status: \${local_status:-curl_error}"
+          local_status="$(curl --output /tmp/najiz-health.out --silent --show-error --write-out '%{http_code}' "http://127.0.0.1:$BACKEND_PORT/api/health" || true)"
+          echo "Local health status: ${local_status:-curl_error}"
           cat /tmp/najiz-health.out || true
 
-          if [ "\$local_status" = "200" ]; then
+          if [ "$local_status" = "200" ]; then
             echo "Backend is healthy on the VPS. External health failure likely points to firewall rules, port exposure, or APP_ALLOWED_HOSTS not matching the public host."
           fi
           EOF
