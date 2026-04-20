@@ -99,8 +99,9 @@ npm run test:e2e
 - The main deploy expects these repository secrets:
   - `VPS_HOST`
   - `VPS_PASSWORD`
-  - `DEPLOY_ENV_FILE` or the legacy `STAGING_ENV_FILE`
+  - `DEPLOY_ENV_FILE`
+- The main deploy now refuses to run if `DEPLOY_ENV_FILE` points at ephemeral storage, a staging/test database, or a staging-style compose stack name.
  
 [![Main Deploy](https://github.com/BandAI-sa/najiz-editor/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/BandAI-sa/najiz-editor/actions/workflows/main.yml)
 
-If the live app should deploy somewhere other than the current default directory on the VPS, set the repository variable `DEPLOY_APP_DIR`.
+If the live app should deploy somewhere other than the current default directory (`/opt/najiz-editor/main`) on the VPS, set the repository variable `DEPLOY_APP_DIR`.
