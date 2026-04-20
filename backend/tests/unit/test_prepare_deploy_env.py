@@ -177,3 +177,28 @@ def test_prepare_deploy_env_rejects_staging_stack_name_for_production(tmp_path):
             mode="production",
             vps_host="198.51.100.10",
         )
+
+
+def test_prepare_deploy_env_rejects_non_integer_runtime_settings(tmp_path):
+    env_file = tmp_path / "deploy.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "APP_ENV=production",
+                "USE_MEMORY_STORE=false",
+                "MONGODB_URI=mongodb://host.docker.internal:27017",
+                "MONGODB_DATABASE=najiz_legal_agent",
+                "SESSION_EXPIRY_HOURS=24*365*10",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DeployEnvError, match="SESSION_EXPIRY_HOURS must be a plain integer"):
+        prepare_deploy_env(
+            env_file,
+            env_file,
+            mode="production",
+            vps_host="198.51.100.10",
+        )

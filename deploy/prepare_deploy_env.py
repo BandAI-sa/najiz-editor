@@ -8,6 +8,15 @@ from pathlib import Path
 
 NON_PRODUCTION_NAME_PATTERN = re.compile(r"(^|[-_])(staging|stage|test|pr)([-_]|$)", re.IGNORECASE)
 LOCALHOST_PREFIXES = ("mongodb://localhost", "mongodb://127.0.0.1")
+INTEGER_SETTING_NAMES = (
+    "APP_PORT",
+    "BACKEND_PORT",
+    "FRONTEND_PORT",
+    "SESSION_EXPIRY_HOURS",
+    "SESSION_TURN_LIMIT",
+    "PETITION_VERSION_LIMIT",
+    "DISPUTE_VALUE_THRESHOLD",
+)
 
 
 class DeployEnvError(ValueError):
@@ -109,6 +118,19 @@ def _normalize_mongodb_uri(value: str) -> str:
     return value
 
 
+def _validate_integer_settings(values: dict[str, str]) -> None:
+    for name in INTEGER_SETTING_NAMES:
+        raw_value = values.get(name)
+        if raw_value is None or not raw_value.strip():
+            continue
+        try:
+            int(raw_value.strip())
+        except ValueError as exc:
+            raise DeployEnvError(
+                f"{name} must be a plain integer value in the deploy env file; got {raw_value!r}."
+            ) from exc
+
+
 def _validate_deploy_mode(values: dict[str, str], mode: str) -> None:
     app_env = values.get("APP_ENV", "").strip().lower()
     expected_envs = {"production", "prod"} if mode == "production" else {"staging", "stage"}
@@ -151,6 +173,7 @@ def prepare_deploy_env(
         )
 
     _validate_deploy_mode(values, mode)
+    _validate_integer_settings(values)
 
     mongodb_uri = values.get("MONGODB_URI", "").strip()
     if not mongodb_uri:
