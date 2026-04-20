@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+import re
 from typing import Literal
 
 from pydantic import AliasChoices, Field, model_validator
@@ -11,6 +12,21 @@ def _parse_csv(value: str | None, fallback: list[str]) -> list[str]:
     if value is None:
         return fallback
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+PROTECTED_APP_ENVS = frozenset({"staging", "stage", "production", "prod"})
+PRODUCTION_APP_ENVS = frozenset({"production", "prod"})
+LOCALHOST_MONGODB_PREFIXES = ("mongodb://localhost", "mongodb://127.0.0.1")
+NON_PRODUCTION_DATABASE_NAME_PATTERN = re.compile(r"(^|[_-])(staging|stage|test|qa|pr)([_-]|$)", re.IGNORECASE)
+
+
+def _uses_localhost_mongodb(uri: str) -> bool:
+    normalized_uri = uri.strip().lower()
+    return any(normalized_uri.startswith(prefix) for prefix in LOCALHOST_MONGODB_PREFIXES)
+
+
+def _looks_non_production_database_name(database_name: str) -> bool:
+    return bool(NON_PRODUCTION_DATABASE_NAME_PATTERN.search(database_name.strip()))
 
 
 LLMProviderName = Literal["openai", "gemini"]
@@ -143,6 +159,13 @@ class Settings(BaseSettings):
             "allow_volatile_memory_store",
         ),
     )
+    allow_localhost_mongodb_in_protected_env: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "ALLOW_LOCALHOST_MONGODB_IN_PROTECTED_ENV",
+            "allow_localhost_mongodb_in_protected_env",
+        ),
+    )
     auto_seed_on_startup: bool = True
 
     llm_provider: Literal["openai", "gemini"] = Field(
@@ -214,8 +237,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_storage_settings(self) -> "Settings":
         normalized_env = self.app_env.strip().lower()
-        protected_envs = {"staging", "stage", "production", "prod"}
-        if self.use_memory_store and normalized_env in protected_envs and not self.allow_volatile_memory_store:
+        if self.use_memory_store and normalized_env in PROTECTED_APP_ENVS and not self.allow_volatile_memory_store:
             raise ValueError(
                 "USE_MEMORY_STORE=true disables Mongo persistence and causes dashboard history to disappear after app restarts. "
                 "Set USE_MEMORY_STORE=false for staging/production environments, or explicitly set ALLOW_VOLATILE_MEMORY_STORE=true "
@@ -224,6 +246,27 @@ class Settings(BaseSettings):
 
         if not self.use_memory_store and not self.mongodb_uri.strip():
             raise ValueError("MONGODB_URI is required when USE_MEMORY_STORE=false.")
+
+        if (
+            not self.use_memory_store
+            and normalized_env in PROTECTED_APP_ENVS
+            and _uses_localhost_mongodb(self.mongodb_uri)
+            and not self.allow_localhost_mongodb_in_protected_env
+        ):
+            raise ValueError(
+                "MONGODB_URI points to localhost for a staging/production environment. "
+                "This repo's protected deployments should use the real Mongo host instead, or explicitly set "
+                "ALLOW_LOCALHOST_MONGODB_IN_PROTECTED_ENV=true for an intentional same-host deployment."
+            )
+
+        if not self.use_memory_store and not self.mongodb_database.strip():
+            raise ValueError("MONGODB_DATABASE is required when USE_MEMORY_STORE=false.")
+
+        if normalized_env in PRODUCTION_APP_ENVS and _looks_non_production_database_name(self.mongodb_database):
+            raise ValueError(
+                "MONGODB_DATABASE looks like a staging/test database name while APP_ENV is production. "
+                "Use the real production database name before starting the app."
+            )
 
         return self
 

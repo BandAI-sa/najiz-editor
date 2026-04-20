@@ -24,6 +24,7 @@ docker compose up --build
 
 - Keep `USE_MEMORY_STORE=false` anywhere the admin dashboard must retain history across restarts.
 - `USE_MEMORY_STORE=true` is for tests or intentionally ephemeral local runs only.
+- Staging/production config now fails fast if `MONGODB_URI` points at `localhost` unless you explicitly opt in with `ALLOW_LOCALHOST_MONGODB_IN_PROTECTED_ENV=true`.
 - `GET /api/health` returns `storage: "mongo"` when persistent Mongo storage is active.
 
 ## LLM Provider Switch
@@ -99,8 +100,9 @@ npm run test:e2e
 - The main deploy expects these repository secrets:
   - `VPS_HOST`
   - `VPS_PASSWORD`
-  - `DEPLOY_ENV_FILE` or the legacy `STAGING_ENV_FILE`
+  - `DEPLOY_ENV_FILE`
+- The main deploy now refuses to run if `DEPLOY_ENV_FILE` points at ephemeral storage, a staging/test database, or a staging-style compose stack name.
  
 [![Main Deploy](https://github.com/BandAI-sa/najiz-editor/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/BandAI-sa/najiz-editor/actions/workflows/main.yml)
 
-If the live app should deploy somewhere other than the current default directory on the VPS, set the repository variable `DEPLOY_APP_DIR`.
+If the live app should deploy somewhere other than the current default directory (`/opt/najiz-editor/main`) on the VPS, set the repository variable `DEPLOY_APP_DIR`.
