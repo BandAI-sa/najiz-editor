@@ -121,7 +121,63 @@ def test_prepare_deploy_env_rejects_mongodb_without_auth_credentials(tmp_path):
         encoding="utf-8",
     )
 
-    with pytest.raises(DeployEnvError, match="must include authentication credentials"):
+    with pytest.raises(DeployEnvError, match="Mongo authentication is required"):
+        prepare_deploy_env(
+            env_file,
+            env_file,
+            mode="production",
+            vps_host="198.51.100.10",
+        )
+
+
+def test_prepare_deploy_env_allows_separate_mongodb_username_and_password(tmp_path):
+    env_file = tmp_path / "deploy.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "APP_ENV=production",
+                "USE_MEMORY_STORE=false",
+                "MONGODB_URI=mongodb://host.docker.internal:27017",
+                "MONGODB_DATABASE=najiz_legal_agent",
+                "MONGODB_USERNAME=najiz_app",
+                "MONGODB_PASSWORD=super-secret-password",
+                "MONGODB_AUTH_SOURCE=admin",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    prepare_deploy_env(
+        env_file,
+        env_file,
+        mode="production",
+        vps_host="198.51.100.10",
+    )
+
+    content = env_file.read_text(encoding="utf-8")
+    assert "MONGODB_URI=mongodb://host.docker.internal:27017" in content
+    assert "MONGODB_USERNAME=najiz_app" in content
+    assert "MONGODB_PASSWORD=super-secret-password" in content
+
+
+def test_prepare_deploy_env_rejects_partial_separate_mongodb_credentials(tmp_path):
+    env_file = tmp_path / "deploy.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "APP_ENV=production",
+                "USE_MEMORY_STORE=false",
+                "MONGODB_URI=mongodb://host.docker.internal:27017",
+                "MONGODB_DATABASE=najiz_legal_agent",
+                "MONGODB_USERNAME=najiz_app",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DeployEnvError, match="MONGODB_USERNAME and MONGODB_PASSWORD"):
         prepare_deploy_env(
             env_file,
             env_file,

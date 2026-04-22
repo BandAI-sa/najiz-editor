@@ -46,7 +46,11 @@ def create_app() -> FastAPI:
                 settings.app_env,
             )
         else:
-            logger.info("Mongo persistence enabled for database=%s", settings.mongodb_database)
+            logger.info(
+                "Mongo persistence enabled for database=%s %s",
+                settings.mongodb_database,
+                settings.mongodb_config_summary,
+            )
 
         await mongo_manager.connect()
         await mongo_manager.ensure_indexes()

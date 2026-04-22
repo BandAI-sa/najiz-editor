@@ -35,6 +35,8 @@ async def _collect_summary() -> dict[str, object]:
         "storage": "memory" if settings.use_memory_store else "mongo",
         "mongodb_database": settings.mongodb_database,
         "mongodb_target": _safe_mongodb_target(settings.mongodb_uri),
+        "mongodb_auth_source": settings.mongodb_effective_auth_source,
+        "mongodb_credentials_present": settings.mongodb_auth_credentials_present,
         "collections": {},
     }
 

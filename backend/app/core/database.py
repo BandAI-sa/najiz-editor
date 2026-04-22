@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import logging
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING, TEXT
+from pymongo.errors import OperationFailure
 
 from app.core.config import Settings
 from app.models.classification import ClassificationCatalog
+
+
+logger = logging.getLogger("uvicorn.error")
 
 
 @dataclass
@@ -28,9 +33,16 @@ class MongoManager:
     async def connect(self) -> None:
         if self.settings.use_memory_store:
             return
-        self.client = AsyncIOMotorClient(self.settings.mongodb_uri)
+        self.client = AsyncIOMotorClient(self.settings.resolved_mongodb_uri)
         self.database = self.client[self.settings.mongodb_database]
-        await self.client.admin.command("ping")
+        try:
+            await self.client.admin.command("ping")
+        except OperationFailure:
+            logger.error(
+                "Mongo authentication failed with %s. Check MONGODB_AUTH_SOURCE, MONGODB_USERNAME/MONGODB_PASSWORD, or URI-encoded credentials.",
+                self.settings.mongodb_config_summary,
+            )
+            raise
 
     async def disconnect(self) -> None:
         if self.client is not None:
