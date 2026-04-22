@@ -254,6 +254,39 @@ jobs:
           echo "::error::Main deployment backend health check failed: $health_url"
           exit 1
 
+      - name: Verify backend persistence runtime
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          DEPLOY_APP_DIR: ${{ vars.DEPLOY_APP_DIR }}
+        run: |
+          set -euo pipefail
+
+          remote_deploy_app_dir="$(printf '%q' "${DEPLOY_APP_DIR:-}")"
+
+          sshpass -p "$VPS_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@"$VPS_HOST" "DEPLOY_APP_DIR=$remote_deploy_app_dir bash -se" <<'EOF'
+          set -euo pipefail
+
+          APP_DIR="${DEPLOY_APP_DIR:-/opt/najiz-editor/main}"
+
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Docker is not installed on the VPS."
+            exit 1
+          fi
+
+          if docker compose version >/dev/null 2>&1; then
+            COMPOSE_CMD="docker compose"
+          elif command -v docker-compose >/dev/null 2>&1; then
+            COMPOSE_CMD="docker-compose"
+          else
+            echo "Docker Compose is not available on the VPS."
+            exit 1
+          fi
+
+          cd "$APP_DIR/app"
+          $COMPOSE_CMD exec -T backend sh -lc 'cd /app/backend && PYTHONPATH=/app/backend python /app/deploy/verify_runtime_storage.py'
+          EOF
+
       - name: Collect deployment diagnostics
         if: ${{ failure() }}
         env:
