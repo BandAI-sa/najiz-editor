@@ -4,7 +4,7 @@ from pathlib import Path
 import ipaddress
 import re
 from typing import Literal
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qsl, parse_qs, quote, urlencode, urlsplit, urlunsplit
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -46,6 +46,22 @@ def _mongodb_uri_has_auth_credentials(uri: str) -> bool:
         return True
 
     return False
+
+
+def _mongodb_uri_has_auth_source(uri: str) -> bool:
+    normalized_uri = uri.strip()
+    if not normalized_uri:
+        return False
+
+    parsed = urlsplit(normalized_uri)
+    return any(value for value in parse_qs(parsed.query).get("authSource", []))
+
+
+def _mongodb_uri_hostinfo(uri: str) -> str:
+    parsed = urlsplit(uri.strip())
+    if not parsed.netloc:
+        return ""
+    return parsed.netloc.rsplit("@", 1)[-1]
 
 
 def _normalize_host_token(value: str) -> str:
@@ -215,6 +231,18 @@ class Settings(BaseSettings):
 
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_database: str = "najiz_legal_agent"
+    mongodb_username: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MONGODB_USERNAME", "mongodb_username"),
+    )
+    mongodb_password: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MONGODB_PASSWORD", "mongodb_password"),
+    )
+    mongodb_auth_source: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MONGODB_AUTH_SOURCE", "mongodb_auth_source"),
+    )
     use_memory_store: bool = False
     allow_volatile_memory_store: bool = Field(
         default=False,
@@ -318,10 +346,15 @@ class Settings(BaseSettings):
         if not self.use_memory_store and not self.mongodb_uri.strip():
             raise ValueError("MONGODB_URI is required when USE_MEMORY_STORE=false.")
 
+        if bool(self.mongodb_username) != bool(self.mongodb_password):
+            raise ValueError(
+                "MONGODB_USERNAME and MONGODB_PASSWORD must either both be set or both be empty."
+            )
+
         if (
             not self.use_memory_store
             and self.is_protected_runtime
-            and _uses_localhost_mongodb(self.mongodb_uri)
+            and _uses_localhost_mongodb(self.resolved_mongodb_uri)
             and not self.allow_localhost_mongodb_in_protected_env
         ):
             raise ValueError(
@@ -333,7 +366,7 @@ class Settings(BaseSettings):
         if (
             not self.use_memory_store
             and self.is_protected_runtime
-            and not _mongodb_uri_has_auth_credentials(self.mongodb_uri)
+            and not self.mongodb_auth_credentials_present
             and not self.allow_unauthenticated_mongodb_in_protected_env
         ):
             raise ValueError(
@@ -389,6 +422,71 @@ class Settings(BaseSettings):
         if normalized_env in PROTECTED_APP_ENVS:
             return True
         return _has_public_host(self.allowed_hosts) or _has_public_host(self.cors_origins)
+
+    @property
+    def resolved_mongodb_uri(self) -> str:
+        raw_uri = self.mongodb_uri.strip()
+        if not raw_uri:
+            return raw_uri
+
+        parsed = urlsplit(raw_uri)
+        hostinfo = _mongodb_uri_hostinfo(raw_uri)
+        netloc = parsed.netloc
+        if not parsed.username and self.mongodb_username and self.mongodb_password:
+            encoded_username = quote(self.mongodb_username, safe="")
+            encoded_password = quote(self.mongodb_password, safe="")
+            netloc = f"{encoded_username}:{encoded_password}@{hostinfo}"
+
+        query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        has_auth_source = any(key == "authSource" and value for key, value in query_pairs)
+        if self.mongodb_auth_source and not has_auth_source:
+            query_pairs.append(("authSource", self.mongodb_auth_source))
+
+        return urlunsplit(
+            (
+                parsed.scheme,
+                netloc,
+                parsed.path,
+                urlencode(query_pairs),
+                parsed.fragment,
+            )
+        )
+
+    @property
+    def mongodb_auth_credentials_present(self) -> bool:
+        return _mongodb_uri_has_auth_credentials(self.resolved_mongodb_uri)
+
+    @property
+    def mongodb_effective_auth_source(self) -> str | None:
+        if self.mongodb_auth_source:
+            return self.mongodb_auth_source
+
+        parsed = urlsplit(self.resolved_mongodb_uri)
+        auth_sources = [value for value in parse_qs(parsed.query).get("authSource", []) if value]
+        if auth_sources:
+            return auth_sources[0]
+
+        if parsed.path and parsed.path not in {"", "/"}:
+            return parsed.path.lstrip("/")
+
+        return None
+
+    @property
+    def mongodb_safe_target(self) -> str:
+        parsed = urlsplit(self.resolved_mongodb_uri)
+        scheme = parsed.scheme or "mongodb"
+        hostinfo = _mongodb_uri_hostinfo(self.resolved_mongodb_uri) or "unknown"
+        return f"{scheme}://{hostinfo}"
+
+    @property
+    def mongodb_config_summary(self) -> str:
+        auth_source = self.mongodb_effective_auth_source or "<driver-default>"
+        username_present = bool(urlsplit(self.resolved_mongodb_uri).username)
+        return (
+            f"target={self.mongodb_safe_target} "
+            f"auth_source={auth_source} "
+            f"username_present={username_present}"
+        )
 
     @property
     def llm_provider_api_key(self) -> str | None:

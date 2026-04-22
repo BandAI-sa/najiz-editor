@@ -140,6 +140,16 @@ def _mongodb_uri_has_auth_credentials(value: str) -> bool:
     return any(mechanism in {"MONGODB-X509", "GSSAPI"} for mechanism in mechanisms)
 
 
+def _has_env_mongodb_credentials(values: dict[str, str]) -> bool:
+    username = values.get("MONGODB_USERNAME", "").strip()
+    password = values.get("MONGODB_PASSWORD", "").strip()
+    if bool(username) != bool(password):
+        raise DeployEnvError(
+            "MONGODB_USERNAME and MONGODB_PASSWORD must either both be set or both be empty in DEPLOY_ENV_FILE."
+        )
+    return bool(username and password)
+
+
 def _validate_integer_settings(values: dict[str, str]) -> None:
     for name in INTEGER_SETTING_NAMES:
         raw_value = values.get(name)
@@ -205,10 +215,10 @@ def prepare_deploy_env(
         _validate_production_names(values)
 
     normalized_mongodb_uri = _normalize_mongodb_uri(mongodb_uri)
-    if not _mongodb_uri_has_auth_credentials(normalized_mongodb_uri):
+    if not (_mongodb_uri_has_auth_credentials(normalized_mongodb_uri) or _has_env_mongodb_credentials(values)):
         raise DeployEnvError(
-            "MONGODB_URI must include authentication credentials for VPS deployments. "
-            "Example: mongodb://appuser:password@host.docker.internal:27017/?authSource=admin"
+            "Mongo authentication is required for VPS deployments. "
+            "Set either an authenticated MONGODB_URI or provide MONGODB_USERNAME and MONGODB_PASSWORD."
         )
 
     allowed_hosts = _normalize_allowed_hosts(values.get("APP_ALLOWED_HOSTS"), vps_host)

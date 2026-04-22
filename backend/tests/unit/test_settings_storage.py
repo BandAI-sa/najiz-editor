@@ -106,6 +106,52 @@ def test_settings_allow_authenticated_mongodb_in_protected_runtime():
     assert settings.mongodb_database == "najiz_legal_agent"
 
 
+def test_settings_allow_mongodb_credentials_from_separate_env_fields():
+    settings = Settings(
+        app_encryption_key="test-key-123",
+        app_env="production",
+        use_memory_store=False,
+        mongodb_uri="mongodb://host.docker.internal:27017",
+        mongodb_database="najiz_legal_agent",
+        mongodb_username="najiz_app",
+        mongodb_password="p@ss word",
+        mongodb_auth_source="admin",
+    )
+
+    assert settings.mongodb_auth_credentials_present is True
+    assert settings.mongodb_effective_auth_source == "admin"
+    assert settings.resolved_mongodb_uri == (
+        "mongodb://najiz_app:p%40ss%20word@host.docker.internal:27017?authSource=admin"
+    )
+
+
+def test_settings_reject_partial_mongodb_credentials_from_separate_env_fields():
+    with pytest.raises(ValidationError, match="MONGODB_USERNAME and MONGODB_PASSWORD"):
+        Settings(
+            app_encryption_key="test-key-123",
+            app_env="production",
+            use_memory_store=False,
+            mongodb_uri="mongodb://host.docker.internal:27017",
+            mongodb_database="najiz_legal_agent",
+            mongodb_username="najiz_app",
+        )
+
+
+def test_settings_apply_mongodb_auth_source_to_existing_uri():
+    settings = Settings(
+        app_encryption_key="test-key-123",
+        app_env="production",
+        use_memory_store=False,
+        mongodb_uri="mongodb://najiz_app:secret@host.docker.internal:27017",
+        mongodb_database="najiz_legal_agent",
+        mongodb_auth_source="admin",
+    )
+
+    assert settings.resolved_mongodb_uri == (
+        "mongodb://najiz_app:secret@host.docker.internal:27017?authSource=admin"
+    )
+
+
 def test_settings_allow_explicit_opt_in_for_unauthenticated_mongodb_in_protected_runtime():
     settings = Settings(
         app_encryption_key="test-key-123",
