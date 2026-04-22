@@ -4,7 +4,7 @@ from pathlib import Path
 import ipaddress
 import re
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -30,6 +30,22 @@ def _uses_localhost_mongodb(uri: str) -> bool:
 
 def _looks_non_production_database_name(database_name: str) -> bool:
     return bool(NON_PRODUCTION_DATABASE_NAME_PATTERN.search(database_name.strip()))
+
+
+def _mongodb_uri_has_auth_credentials(uri: str) -> bool:
+    normalized_uri = uri.strip()
+    if not normalized_uri:
+        return False
+
+    parsed = urlsplit(normalized_uri)
+    if parsed.username and parsed.password:
+        return True
+
+    mechanisms = [value.upper() for value in parse_qs(parsed.query).get("authMechanism", []) if value]
+    if any(mechanism in {"MONGODB-X509", "GSSAPI"} for mechanism in mechanisms):
+        return True
+
+    return False
 
 
 def _normalize_host_token(value: str) -> str:
@@ -214,6 +230,13 @@ class Settings(BaseSettings):
             "allow_localhost_mongodb_in_protected_env",
         ),
     )
+    allow_unauthenticated_mongodb_in_protected_env: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "ALLOW_UNAUTHENTICATED_MONGODB_IN_PROTECTED_ENV",
+            "allow_unauthenticated_mongodb_in_protected_env",
+        ),
+    )
     auto_seed_on_startup: bool = True
 
     llm_provider: Literal["openai", "gemini"] = Field(
@@ -305,6 +328,18 @@ class Settings(BaseSettings):
                 "MONGODB_URI points to localhost for a staging/production or other public-facing deployment. "
                 "This repo's protected deployments should use the real Mongo host instead, or explicitly set "
                 "ALLOW_LOCALHOST_MONGODB_IN_PROTECTED_ENV=true for an intentional same-host deployment."
+            )
+
+        if (
+            not self.use_memory_store
+            and self.is_protected_runtime
+            and not _mongodb_uri_has_auth_credentials(self.mongodb_uri)
+            and not self.allow_unauthenticated_mongodb_in_protected_env
+        ):
+            raise ValueError(
+                "MONGODB_URI must include authentication credentials for staging/production or other public-facing deployments. "
+                "Expose MongoDB only behind authentication, or explicitly set "
+                "ALLOW_UNAUTHENTICATED_MONGODB_IN_PROTECTED_ENV=true for a short-lived intentional exception."
             )
 
         if not self.use_memory_store and not self.mongodb_database.strip():

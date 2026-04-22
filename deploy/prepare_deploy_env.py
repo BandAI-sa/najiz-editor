@@ -4,6 +4,7 @@ import argparse
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 
 NON_PRODUCTION_NAME_PATTERN = re.compile(r"(^|[-_])(staging|stage|test|pr)([-_]|$)", re.IGNORECASE)
@@ -112,10 +113,31 @@ def _normalize_allowed_hosts(value: str | None, required_item: str) -> str:
 
 
 def _normalize_mongodb_uri(value: str) -> str:
-    for prefix in LOCALHOST_PREFIXES:
-        if value.startswith(prefix):
-            return value.replace(prefix, "mongodb://host.docker.internal", 1)
-    return value
+    parsed = urlsplit(value.strip())
+    if (parsed.hostname or "").lower() not in {"localhost", "127.0.0.1"}:
+        return value
+
+    credentials = ""
+    if parsed.username:
+        credentials = parsed.username
+        if parsed.password is not None:
+            credentials = f"{credentials}:{parsed.password}"
+        credentials = f"{credentials}@"
+
+    port = f":{parsed.port}" if parsed.port else ""
+    query = f"?{parsed.query}" if parsed.query else ""
+    fragment = f"#{parsed.fragment}" if parsed.fragment else ""
+    scheme = parsed.scheme or "mongodb"
+    return f"{scheme}://{credentials}host.docker.internal{port}{parsed.path}{query}{fragment}"
+
+
+def _mongodb_uri_has_auth_credentials(value: str) -> bool:
+    parsed = urlsplit(value.strip())
+    if parsed.username and parsed.password:
+        return True
+
+    mechanisms = [item.upper() for item in parse_qs(parsed.query).get("authMechanism", []) if item]
+    return any(mechanism in {"MONGODB-X509", "GSSAPI"} for mechanism in mechanisms)
 
 
 def _validate_integer_settings(values: dict[str, str]) -> None:
@@ -183,6 +205,12 @@ def prepare_deploy_env(
         _validate_production_names(values)
 
     normalized_mongodb_uri = _normalize_mongodb_uri(mongodb_uri)
+    if not _mongodb_uri_has_auth_credentials(normalized_mongodb_uri):
+        raise DeployEnvError(
+            "MONGODB_URI must include authentication credentials for VPS deployments. "
+            "Example: mongodb://appuser:password@host.docker.internal:27017/?authSource=admin"
+        )
+
     allowed_hosts = _normalize_allowed_hosts(values.get("APP_ALLOWED_HOSTS"), vps_host)
     compose_project_name = values.get("COMPOSE_PROJECT_NAME", "").strip() or (
         "najiz-main" if mode == "production" else "najiz-staging"
