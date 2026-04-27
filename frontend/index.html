@@ -41,19 +41,20 @@
         <h2 id="llm-config-title">اختر مزود الذكاء والنموذج</h2>
         <p class="llm-config-copy">
           يظهر هذا السؤال مرة واحدة فقط عند أول دخول. بعد الحفظ سيبقى الشريط العلوي لعرض الإعداد الحالي
-          ويمكنك تغييره لاحقاً.
+          ويمكنك تغييره لاحقًا.
         </p>
 
         <div id="llm-provider-options" class="llm-provider-grid"></div>
 
-        <label class="field-label" for="llm-model-input">اسم النموذج</label>
+        <label class="field-label" for="llm-model-input">النموذج المعتمد</label>
         <input
           id="llm-model-input"
           class="select-field"
           type="text"
           list="llm-model-suggestions"
-          placeholder="اختر من المقترحات أو اكتب اسم النموذج"
+          placeholder="يُحدد من البطاقات المعتمدة فقط"
           autocomplete="off"
+          readonly
         />
         <datalist id="llm-model-suggestions"></datalist>
         <div id="llm-model-options" class="llm-model-grid"></div>
@@ -138,6 +139,65 @@
             <div id="draft-role-options" class="draft-role-options"></div>
           </section>
 
+          <div id="draft-role-actions" class="draft-role-actions hidden">
+            <button id="draft-btn" type="button" class="btn btn-primary" disabled>بدء الصياغة</button>
+          </div>
+
+          <section
+            id="interview-form-panel"
+            class="interview-form-panel hidden"
+            dir="rtl"
+            lang="ar"
+            aria-live="polite"
+          >
+            <div class="interview-form-shell">
+              <div class="interview-form-heading">
+                <p id="interview-form-path" class="interview-form-path">لم يتم اعتماد نوع الدعوى بعد.</p>
+                <h3 id="interview-form-title">نموذج بيانات الدعوى</h3>
+                <p id="interview-form-description" class="interview-form-description">
+                  أكمل الحقول الإلزامية ثم اعتمد البيانات للمتابعة.
+                </p>
+              </div>
+              <div id="interview-form-status" class="interview-form-status" role="status" aria-live="polite">
+                أكمل جميع الحقول الإلزامية ثم اعتمد البيانات للمتابعة.
+              </div>
+              <div id="interview-form-groups" class="interview-form-groups"></div>
+              <div class="interview-form-actions">
+                <button id="interview-form-submit-btn" type="button" class="btn btn-primary">
+                  اعتماد البيانات والمتابعة
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section id="supports-panel" class="supports-panel hidden" dir="rtl" lang="ar">
+            <div class="panel-head panel-head-inline">
+              <div>
+                <p class="eyebrow">الدعمات</p>
+                <h3>المراجع والتفاصيل المرتبطة</h3>
+              </div>
+              <div class="supports-actions">
+                <button
+                  id="supports-expand-all-btn"
+                  type="button"
+                  class="btn btn-ghost"
+                  aria-label="عرض تفاصيل جميع عناصر الدعم"
+                >
+                  عرض الكل
+                </button>
+                <button
+                  id="supports-collapse-all-btn"
+                  type="button"
+                  class="btn btn-ghost"
+                  aria-label="إخفاء تفاصيل جميع عناصر الدعم"
+                >
+                  إخفاء الكل
+                </button>
+              </div>
+            </div>
+            <div id="supports-list" class="supports-list"></div>
+          </section>
+
           <div id="messages" class="messages-list" aria-live="polite"></div>
 
           <form id="message-form" class="composer" autocomplete="off">
@@ -149,7 +209,6 @@
               rows="4"
             ></textarea>
             <div class="composer-actions">
-              <button id="draft-btn" type="button" class="btn btn-secondary" disabled>بدء الصياغة</button>
               <button id="send-btn" type="submit" class="btn btn-primary">إرسال</button>
             </div>
           </form>

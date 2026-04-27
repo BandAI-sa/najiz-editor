@@ -1,7 +1,8 @@
 import pytest
 
-from app.core.config import get_settings
 from app.core.exceptions import LLMParseError
+from app.core.config import get_settings
+from app.models.classification import CaseSuggestion
 from app.models.session import Session
 from app.repositories.classification_repository import ClassificationRepository
 from app.services.agent.phase1_classifier import Phase1ClassifierService, _StructuredSuggestion
@@ -83,3 +84,46 @@ async def test_classifier_text_recovery_returns_valid_suggestion(classification_
     assert suggestions[0].case_title == "إثبات طلاق"
     assert suggestions[0].confidence == 0.91
     assert len({item.case_id for item in suggestions}) == 3
+
+
+@pytest.mark.asyncio
+async def test_classifier_returns_inline_warning_for_ambiguous_input(classification_repo, monkeypatch):
+    service = Phase1ClassifierService(classification_repo, DummyLLM())
+    session = Session()
+
+    suggestions = [
+      CaseSuggestion(
+          case_id="case-01-01-001",
+          case_title="إقامة حارس قضائي",
+          main_id="main-01",
+          main_title="أحوال شخصية",
+          sub_id="sub-01-01",
+          sub_title="التصنيف العام",
+          confidence=0.78,
+          rationale="اقتراح أول.",
+          path=["أحوال شخصية", "التصنيف العام", "إقامة حارس قضائي"],
+      ),
+      CaseSuggestion(
+          case_id="case-01-01-002",
+          case_title="التعويض عن أضرار التقاضي",
+          main_id="main-01",
+          main_title="أحوال شخصية",
+          sub_id="sub-01-01",
+          sub_title="التصنيف العام",
+          confidence=0.74,
+          rationale="اقتراح ثانٍ.",
+          path=["أحوال شخصية", "التصنيف العام", "التعويض عن أضرار التقاضي"],
+      ),
+    ]
+
+    async def fake_classify_with_llm(message, flat_index):
+        return suggestions
+
+    monkeypatch.setattr(service, "_classify_with_llm", fake_classify_with_llm)
+
+    result = await service.classify(session, "طلاق", classification_repo.catalog.flat_index)
+
+    assert result.next_action == "clarify_classification"
+    assert result.suggestions == []
+    assert result.inline_notice is not None
+    assert "لم نتمكن من تحديد نوع ورقة الدعوى" in result.inline_notice.message

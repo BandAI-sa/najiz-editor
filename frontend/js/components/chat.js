@@ -79,6 +79,7 @@ export function createChatComponent({ container, form, input, submitButton, onSu
 
   return {
     render(state) {
+      const formMode = state.currentStep === "fill_form" || state.currentStep === "select_petition_role";
       container.replaceChildren();
       state.chat.forEach((message) => {
         container.appendChild(buildMessageCard(message));
@@ -87,7 +88,9 @@ export function createChatComponent({ container, form, input, submitButton, onSu
         container.appendChild(buildPendingCard(state.loadingMessage));
       }
       const awaitingDraftRole = state.currentStep === "select_petition_role";
-      const disabled = state.loading || awaitingDraftRole;
+      const disabled = state.loading || awaitingDraftRole || state.currentStep === "fill_form";
+      container.classList.toggle("hidden", formMode);
+      form.classList.toggle("hidden", formMode);
       form.setAttribute("aria-busy", state.loading ? "true" : "false");
       input.disabled = disabled;
       input.placeholder = awaitingDraftRole

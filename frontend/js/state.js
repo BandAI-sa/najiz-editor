@@ -24,12 +24,22 @@ const initialState = () => ({
     cases: [],
     suggestions: [],
     selectedPath: "",
+    warning: null,
   },
   interview: {
     extractedData: {},
     completion: 0,
     missingFields: [],
     currentPrompt: "",
+    form: null,
+    formValues: {},
+    formErrors: {},
+    submitState: "idle",
+    submitMessage: "",
+    supportState: {
+      expandAll: false,
+      expandedById: {},
+    },
   },
   petition: {
     petitionId: null,

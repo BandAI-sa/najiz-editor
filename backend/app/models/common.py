@@ -40,6 +40,14 @@ class GuardIssue(BaseSchema):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class InlineNotice(BaseSchema):
+    tone: str = "warning"
+    icon: str = "⚠️"
+    title: str
+    message: str
+    aria_label: str = ""
+
+
 class ValidationIssue(BaseSchema):
     code: str
     level: str

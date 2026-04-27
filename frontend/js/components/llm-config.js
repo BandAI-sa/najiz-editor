@@ -1,7 +1,24 @@
+function formatTier(tier) {
+  if (tier === "flagship") return "استدلال عميق";
+  if (tier === "advanced") return "صياغة متقدمة";
+  if (tier === "balanced") return "استخدام عام";
+  if (tier === "chat") return "محادثة";
+  return "نموذج معتمد";
+}
+
+function formatStage(stage) {
+  if (stage === "preview") return "معاينة";
+  if (stage === "alias") return "إحالة";
+  return "";
+}
+
 function buildProviderCard(provider, activeProvider, onSelect) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "llm-provider-card";
+  button.setAttribute("dir", "rtl");
+  button.setAttribute("lang", "ar");
+
   if (provider.id === activeProvider) {
     button.classList.add("is-active");
   }
@@ -15,11 +32,11 @@ function buildProviderCard(provider, activeProvider, onSelect) {
 
   const meta = document.createElement("span");
   meta.className = "llm-provider-meta";
-  meta.textContent = provider.enabled ? `الافتراضي: ${provider.default_model}` : "غير متاح حالياً";
+  meta.textContent = provider.enabled ? `النموذج الافتراضي: ${provider.default_label || provider.default_model}` : "غير متاح حالياً";
 
   const tag = document.createElement("span");
   tag.className = "llm-provider-tag";
-  tag.textContent = provider.enabled ? provider.id.toUpperCase() : "غير مفعّل";
+  tag.textContent = provider.enabled ? "مزود متاح" : "غير مفعّل";
 
   button.addEventListener("click", () => onSelect(provider.id));
   button.append(title, meta, tag);
@@ -30,6 +47,10 @@ function buildModelCard(model, activeModel, onSelect) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "llm-model-card";
+  button.setAttribute("dir", "rtl");
+  button.setAttribute("lang", "ar");
+  button.title = [model.summary, model.notes].filter(Boolean).join(" ");
+
   if (model.id === activeModel) {
     button.classList.add("is-active");
   }
@@ -46,20 +67,21 @@ function buildModelCard(model, activeModel, onSelect) {
 
   const tier = document.createElement("span");
   tier.className = "llm-model-badge";
-  tier.textContent = model.tier;
+  tier.textContent = formatTier(model.tier);
   badges.appendChild(tier);
 
   if (model.recommended) {
     const recommended = document.createElement("span");
     recommended.className = "llm-model-badge";
-    recommended.textContent = "recommended";
+    recommended.textContent = "الافتراضي";
     badges.appendChild(recommended);
   }
 
-  if (model.stage && model.stage !== "stable" && model.stage !== "custom") {
+  const stageLabel = formatStage(model.stage);
+  if (stageLabel) {
     const stage = document.createElement("span");
     stage.className = "llm-model-badge preview";
-    stage.textContent = model.stage;
+    stage.textContent = stageLabel;
     badges.appendChild(stage);
   }
 
@@ -73,15 +95,6 @@ function buildModelCard(model, activeModel, onSelect) {
   return button;
 }
 
-function fillSuggestions(listElement, models) {
-  listElement.replaceChildren();
-  models.forEach((model) => {
-    const option = document.createElement("option");
-    option.value = model.id;
-    listElement.appendChild(option);
-  });
-}
-
 export function createLLMConfigComponent(elements, handlers) {
   const {
     statusBar,
@@ -91,7 +104,6 @@ export function createLLMConfigComponent(elements, handlers) {
     overlay,
     providerOptions,
     modelInput,
-    modelSuggestions,
     modelOptions,
     hint,
     saveButton,
@@ -100,14 +112,17 @@ export function createLLMConfigComponent(elements, handlers) {
 
   changeButton.addEventListener("click", handlers.onOpen);
   cancelButton.addEventListener("click", handlers.onCancel);
-  saveButton.addEventListener("click", () => handlers.onSave(modelInput.value));
-  modelInput.addEventListener("input", () => handlers.onModelInput(modelInput.value));
+  saveButton.addEventListener("click", handlers.onSave);
 
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) {
       handlers.onCancel();
     }
   });
+
+  if (modelInput) {
+    modelInput.readOnly = true;
+  }
 
   return {
     render(state) {
@@ -119,12 +134,16 @@ export function createLLMConfigComponent(elements, handlers) {
         providerModels.find((model) => model.id === llm.draftModel) ||
         providerModels.find((model) => model.id === activeProvider?.default_model) ||
         null;
+      const shownModel =
+        shownProvider?.models?.find((model) => model.id === llm.selectedModel) ||
+        shownProvider?.models?.find((model) => model.id === shownProvider?.default_model) ||
+        activeModel;
 
       statusBar.classList.toggle("hidden", !llm.hasSavedSelection);
       if (shownProvider) {
         statusProvider.textContent = shownProvider.label;
       }
-      statusModel.textContent = llm.selectedModel || activeProvider?.default_model || "—";
+      statusModel.textContent = shownModel?.label || activeModel?.label || "—";
 
       overlay.classList.toggle("hidden", !llm.chooserOpen);
       overlay.setAttribute("aria-hidden", String(!llm.chooserOpen));
@@ -140,16 +159,15 @@ export function createLLMConfigComponent(elements, handlers) {
         ...providerModels.map((model) => buildModelCard(model, llm.draftModel, handlers.onModelSelect))
       );
 
-      fillSuggestions(modelSuggestions, providerModels);
-      if (modelInput.value !== llm.draftModel) {
-        modelInput.value = llm.draftModel;
+      if (modelInput) {
+        modelInput.value = activeModel?.label || "";
       }
 
       hint.textContent = activeModel
         ? `${activeModel.summary}${activeModel.notes ? ` ${activeModel.notes}` : ""}`
-        : "يمكنك اختيار بطاقة من النماذج المقترحة أو كتابة معرف نموذج مخصص إذا لزم.";
+        : "اختر نموذجاً معتمداً من البطاقات الظاهرة فقط.";
 
-      saveButton.disabled = !activeProvider?.enabled || !llm.draftModel.trim();
+      saveButton.disabled = !activeProvider?.enabled || !activeModel;
       cancelButton.classList.toggle("hidden", !llm.canDismissChooser);
       cancelButton.disabled = !llm.canDismissChooser;
     },
