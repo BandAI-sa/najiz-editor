@@ -85,6 +85,11 @@ export const sessionsAPI = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+  submitInterviewForm: (id, values) =>
+    apiCall(`/sessions/${id}/interview-form`, {
+      method: "PATCH",
+      body: JSON.stringify({ values }),
+    }),
 };
 
 export const agentAPI = {

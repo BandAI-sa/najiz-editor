@@ -621,6 +621,287 @@ body {
   line-height: 1.8;
 }
 
+.draft-role-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.classification-warning-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(194, 132, 12, 0.22);
+  background: linear-gradient(180deg, rgba(255, 248, 222, 0.94), rgba(255, 252, 242, 0.92));
+  color: #6a5105;
+  box-shadow: inset 0 0 0 1px rgba(194, 132, 12, 0.08);
+}
+
+.classification-warning-card strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.classification-warning-card p {
+  margin: 0;
+  line-height: 1.8;
+}
+
+.interview-form-panel,
+.supports-panel {
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(13, 92, 99, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(244, 250, 248, 0.9));
+}
+
+.interview-form-shell,
+.interview-form-heading,
+.interview-form-groups,
+.supports-list {
+  display: grid;
+  gap: 16px;
+}
+
+.interview-form-path {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.interview-form-heading h3,
+.supports-panel h3 {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.interview-form-description {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.85;
+}
+
+.interview-form-status {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(13, 92, 99, 0.12);
+  background: rgba(13, 92, 99, 0.06);
+  color: var(--color-primary-strong);
+  line-height: 1.8;
+}
+
+.interview-form-status.warning {
+  border-color: rgba(194, 132, 12, 0.2);
+  background: rgba(194, 132, 12, 0.1);
+  color: #7d5a06;
+}
+
+.interview-form-status.success {
+  border-color: rgba(30, 122, 74, 0.18);
+  background: rgba(30, 122, 74, 0.08);
+  color: var(--color-success);
+}
+
+.interview-form-group {
+  display: grid;
+  gap: 12px;
+}
+
+.interview-form-group h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.interview-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.interview-form-field {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(13, 92, 99, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.interview-form-field-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.interview-form-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  line-height: 1.7;
+}
+
+.interview-form-required,
+.interview-form-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.interview-form-required {
+  background: rgba(13, 92, 99, 0.08);
+  color: var(--color-primary-strong);
+}
+
+.interview-form-badge {
+  background: rgba(201, 113, 43, 0.12);
+  color: var(--color-accent);
+}
+
+.interview-form-hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+
+.interview-form-input {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 16px;
+  border: 1px solid rgba(13, 92, 99, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--color-ink);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.interview-form-input:focus {
+  outline: none;
+  border-color: rgba(13, 92, 99, 0.42);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(13, 92, 99, 0.08);
+}
+
+.interview-form-input[aria-invalid="true"] {
+  border-color: rgba(178, 65, 52, 0.3);
+  box-shadow: 0 0 0 3px rgba(178, 65, 52, 0.08);
+}
+
+.interview-form-textarea {
+  resize: vertical;
+  min-height: 112px;
+}
+
+.interview-form-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.interview-form-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(13, 92, 99, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+}
+
+.interview-form-radio input {
+  accent-color: var(--color-primary);
+}
+
+.interview-form-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.interview-form-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.supports-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.support-item {
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(13, 92, 99, 0.12);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.support-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.support-item-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.support-item-copy strong {
+  line-height: 1.6;
+}
+
+.support-item-summary {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.8;
+}
+
+.support-toggle-btn {
+  min-width: 128px;
+  min-height: 44px;
+  padding-inline: 16px;
+}
+
+.support-item-details {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 220ms ease,
+    opacity 220ms ease;
+}
+
+.support-item-details.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.support-item-details-inner {
+  overflow: hidden;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(13, 92, 99, 0.1);
+  line-height: 1.9;
+  color: var(--color-ink);
+}
+
 .suggestion-card {
   padding: 16px;
   border-radius: 18px;
@@ -1455,8 +1736,10 @@ body {
   .review-summary,
   .composer-actions,
   .petition-actions,
+  .draft-role-actions,
   .llm-status-bar,
   .llm-config-actions,
+  .supports-actions,
   .admin-header-top,
   .admin-header-actions,
   .admin-detail-header,
@@ -1478,6 +1761,21 @@ body {
   .petition-editor,
   .petition-viewer {
     min-height: 280px;
+  }
+
+  .interview-form-grid,
+  .draft-role-options {
+    grid-template-columns: 1fr;
+  }
+
+  .support-item-top {
+    flex-direction: column;
+  }
+
+  .support-toggle-btn,
+  .draft-role-actions .btn,
+  .interview-form-actions .btn {
+    width: 100%;
   }
 
   .llm-config-dialog {

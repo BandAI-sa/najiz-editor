@@ -66,6 +66,8 @@ class AgentOrchestrator:
             metadata=result.metadata,
             suggestions=result.suggestions,
             classification=session.classification,
+            interview_form=result.interview_form or session.interview_form,
+            inline_notice=result.inline_notice or session.inline_notice,
             petition=result.petition,
             review_report=result.review,
         )

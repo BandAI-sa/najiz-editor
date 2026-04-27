@@ -201,7 +201,7 @@ test("renders admin dashboard, filters results, and opens petition details", asy
     "background-color",
     "rgb(250, 238, 218)"
   );
-  await expect(page.locator('[data-petition-id="petition-2"] .admin-tag-model')).toContainText("Unknown model");
+  await expect(page.locator('[data-petition-id="petition-2"] .admin-tag-model')).toContainText("نموذج غير معروف");
   await expect(page.locator('[data-petition-id="petition-2"] .admin-tag-model')).toHaveCSS(
     "background-color",
     "rgb(241, 239, 232)"
@@ -212,7 +212,7 @@ test("renders admin dashboard, filters results, and opens petition details", asy
   await page.locator("#admin-status-select").selectOption("DRAFT_READY");
   await expect(page.locator("#admin-petition-list")).toContainText("مطالبة مالية");
   await expect(page.locator("#admin-petition-list")).not.toContainText("إقامة حارس قضائي");
-  await expect(page.locator("#admin-detail .admin-tag-model")).toContainText("Unknown model");
+  await expect(page.locator("#admin-detail .admin-tag-model")).toContainText("نموذج غير معروف");
 
   await page.locator("#admin-search-input").fill("session-1");
   await page.locator("#admin-status-select").selectOption("");

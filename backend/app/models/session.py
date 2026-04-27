@@ -6,8 +6,8 @@ from typing import Any
 
 from pydantic import Field
 
-from app.models.classification import ClassificationSelection
-from app.models.common import BaseSchema, GuardIssue, generate_uuid, now_utc
+from app.models.classification import ClassificationSelection, InterviewForm
+from app.models.common import BaseSchema, GuardIssue, InlineNotice, generate_uuid, now_utc
 
 
 class Phase(IntEnum):
@@ -49,3 +49,5 @@ class Session(BaseSchema):
     petition_version: int = 0
     flags: SessionFlags = Field(default_factory=SessionFlags)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    interview_form: InterviewForm | None = None
+    inline_notice: InlineNotice | None = None

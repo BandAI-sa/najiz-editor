@@ -27,7 +27,7 @@ def test_build_openai_client_from_env(monkeypatch):
     assert settings.model_for("classifier") == settings.openai_model
 
 
-def test_build_gemini_client_from_env(monkeypatch):
+def test_build_gemini_client_from_env_clamps_removed_models(monkeypatch):
     monkeypatch.setenv("APP_ENCRYPTION_KEY", "test-encryption-key")
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
     monkeypatch.setenv("LLM_ENABLE", "true")
@@ -42,7 +42,7 @@ def test_build_gemini_client_from_env(monkeypatch):
     assert client.provider == "gemini"
     assert client.enabled is True
     assert settings.llm_is_enabled is True
-    assert settings.model_for("classifier") == "gemini-2.5-flash-lite"
+    assert settings.model_for("classifier") == "gemini-2.5-pro"
 
 
 def test_openai_enable_llm_alias_still_supported(monkeypatch):
@@ -126,17 +126,15 @@ def test_request_override_falls_back_when_provider_is_unavailable(monkeypatch):
     assert resolved.model_for("classifier") == settings.openai_model
 
 
-def test_model_catalog_includes_enriched_openai_and_gemini_options(monkeypatch):
+def test_model_catalog_only_contains_curated_options(monkeypatch):
     monkeypatch.setenv("APP_ENCRYPTION_KEY", "test-encryption-key")
     settings = Settings(_env_file=None)
 
     openai_models = settings.suggested_models_for_provider("openai")
     gemini_models = settings.suggested_models_for_provider("gemini")
 
-    assert "gpt-5.2" in openai_models
-    assert "gpt-5.2-chat-latest" in openai_models
-    assert "gemini-3-pro-preview" in gemini_models
-    assert "gemini-3-flash-preview" in gemini_models
+    assert openai_models == ["o3", "gpt-5.2", "gpt-5.4"]
+    assert gemini_models == ["gemini-2.5-pro", "gemini-3-pro-preview"]
 
 
 def test_structured_output_support_flags_pro_models_correctly():
@@ -145,13 +143,13 @@ def test_structured_output_support_flags_pro_models_correctly():
     assert _supports_native_structured_outputs("gpt-5.4-pro") is False
 
 
-async def test_openai_structured_parse_falls_back_to_text_generation(monkeypatch):
+async def test_openai_text_based_structured_parse_helper_returns_schema(monkeypatch):
     monkeypatch.setenv("APP_ENCRYPTION_KEY", "test-encryption-key")
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("LLM_ENABLE", "true")
     monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
 
-    settings = Settings(_env_file=None).with_llm_selection("openai", "gpt-5.2-pro")
+    settings = Settings(_env_file=None).with_llm_selection("openai", "o3")
     client = OpenAIResponseClient(settings)
 
     async def fake_generate_text(*args, **kwargs):
@@ -159,11 +157,12 @@ async def test_openai_structured_parse_falls_back_to_text_generation(monkeypatch
 
     monkeypatch.setattr(client, "generate_text", fake_generate_text)
 
-    parsed = await client.parse_structured(
-        "classifier",
-        "Return JSON.",
-        [{"role": "user", "content": "facts"}],
-        _StructuredClassification,
+    parsed = await client._parse_structured_via_text_generation(
+        model="o3",
+        capability="classifier",
+        instructions="Return JSON.",
+        conversation=[{"role": "user", "content": "facts"}],
+        schema=_StructuredClassification,
         temperature=0.2,
         max_output_tokens=200,
     )
@@ -210,13 +209,13 @@ def test_gemini_extract_generation_result_skips_thought_only_parts():
     assert result.candidate_index == 1
 
 
-async def test_gemini_flash_classifier_disables_dynamic_thinking(monkeypatch):
+async def test_gemini_pro_classifier_uses_short_form_thinking_budget(monkeypatch):
     monkeypatch.setenv("APP_ENCRYPTION_KEY", "test-encryption-key")
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
     monkeypatch.setenv("LLM_ENABLE", "true")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
 
-    settings = Settings(_env_file=None).with_llm_selection("gemini", "gemini-2.5-flash")
+    settings = Settings(_env_file=None).with_llm_selection("gemini", "gemini-2.5-pro")
     client = GeminiResponseClient(settings)
     captured: dict[str, object] = {}
 
@@ -243,9 +242,9 @@ async def test_gemini_flash_classifier_disables_dynamic_thinking(monkeypatch):
     )
 
     assert result == "ok"
-    assert captured["model"] == "gemini-2.5-flash"
+    assert captured["model"] == "gemini-2.5-pro"
     generation_config = captured["payload"]["generationConfig"]
-    assert generation_config["thinkingConfig"] == {"thinkingBudget": 0}
+    assert generation_config["thinkingConfig"] == {"thinkingBudget": 256}
 
 
 async def test_gemini_pro_drafter_uses_bounded_thinking_budget(monkeypatch):
@@ -284,17 +283,18 @@ async def test_gemini_pro_drafter_uses_bounded_thinking_budget(monkeypatch):
     assert generation_config["thinkingConfig"] == {"thinkingBudget": 1536}
 
 
-async def test_gemini_3_flash_uses_thinking_level(monkeypatch):
+async def test_gemini_3_pro_preview_uses_thinking_level(monkeypatch):
     monkeypatch.setenv("APP_ENCRYPTION_KEY", "test-encryption-key")
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
     monkeypatch.setenv("LLM_ENABLE", "true")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
 
-    settings = Settings(_env_file=None).with_llm_selection("gemini", "gemini-3.1-flash-lite")
+    settings = Settings(_env_file=None).with_llm_selection("gemini", "gemini-3-pro-preview")
     client = GeminiResponseClient(settings)
     captured: dict[str, object] = {}
 
     async def fake_post(model: str, payload: dict[str, object]):
+        captured["model"] = model
         captured["payload"] = payload
         return {
             "candidates": [
@@ -316,5 +316,6 @@ async def test_gemini_3_flash_uses_thinking_level(monkeypatch):
     )
 
     assert result == "review"
+    assert captured["model"] == "gemini-3-pro-preview"
     thinking_config = captured["payload"]["generationConfig"]["thinkingConfig"]
-    assert thinking_config == {"thinkingLevel": "low"}
+    assert thinking_config == {"thinkingLevel": "medium"}
