@@ -187,6 +187,54 @@ function buildSupportItem(item, expanded, handlers) {
   return article;
 }
 
+function captureFieldFocus(container) {
+  const activeElement = document.activeElement;
+  if (!activeElement || !container.contains(activeElement) || !activeElement.id) {
+    return null;
+  }
+
+  const focusState = {
+    id: activeElement.id,
+  };
+
+  if (
+    typeof activeElement.selectionStart === "number" &&
+    typeof activeElement.selectionEnd === "number"
+  ) {
+    focusState.selectionStart = activeElement.selectionStart;
+    focusState.selectionEnd = activeElement.selectionEnd;
+    focusState.selectionDirection = activeElement.selectionDirection || "none";
+  }
+
+  return focusState;
+}
+
+function restoreFieldFocus(container, focusState) {
+  if (!focusState?.id) {
+    return;
+  }
+
+  const selector = `#${CSS.escape(focusState.id)}`;
+  const nextActiveElement = container.querySelector(selector);
+  if (!(nextActiveElement instanceof HTMLElement)) {
+    return;
+  }
+
+  nextActiveElement.focus({ preventScroll: true });
+
+  if (
+    typeof focusState.selectionStart === "number" &&
+    typeof focusState.selectionEnd === "number" &&
+    typeof nextActiveElement.setSelectionRange === "function"
+  ) {
+    nextActiveElement.setSelectionRange(
+      focusState.selectionStart,
+      focusState.selectionEnd,
+      focusState.selectionDirection || "none"
+    );
+  }
+}
+
 export function createInterviewFormComponent(elements, handlers) {
   const {
     panel,
@@ -231,6 +279,8 @@ export function createInterviewFormComponent(elements, handlers) {
       status.textContent =
         state.interview.submitMessage || "أكمل جميع الحقول الإلزامية ثم اعتمد البيانات للمتابعة.";
 
+      const focusState = captureFieldFocus(panel);
+
       groupsContainer.replaceChildren();
       groups.forEach((group) => {
         const section = document.createElement("section");
@@ -257,6 +307,8 @@ export function createInterviewFormComponent(elements, handlers) {
         const expanded = Boolean(supportState.expandedById[item.support_id]);
         supportsList.appendChild(buildSupportItem(item, expanded, handlers));
       });
+
+      restoreFieldFocus(panel, focusState);
 
       const expandedValues = Object.values(supportState.expandedById || {});
       const allExpanded = expandedValues.length > 0 && expandedValues.every(Boolean);

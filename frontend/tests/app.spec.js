@@ -598,7 +598,13 @@ test("renders the curated model list and form-first lawsuit flow", async ({ page
   await page.locator(".support-toggle-btn").first().click();
   await expect(firstSupportDetails).toHaveAttribute("aria-hidden", "false");
 
-  await page.locator("#interview-field-auth_01").fill("نواف");
+  const partyField = page.locator("#interview-field-auth_01");
+  await partyField.click();
+  await page.keyboard.type("Nawaf");
+  await expect(partyField).toHaveValue("Nawaf");
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.id || ""))
+    .toBe("interview-field-auth_01");
   await page.locator("#interview-field-auth_02").fill("يوجد نزاع على إدارة التركة وطلب تعيين حارس قضائي.");
   await page.getByLabel("نعم").check();
   await page.locator("#interview-form-submit-btn").click();
