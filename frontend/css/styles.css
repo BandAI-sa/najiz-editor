@@ -623,7 +623,7 @@ body {
 
 .draft-role-actions {
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .classification-warning-card {
