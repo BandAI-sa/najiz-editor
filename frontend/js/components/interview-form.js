@@ -26,6 +26,17 @@ function fieldDomIds(fieldKey) {
   };
 }
 
+function resolveRadioOptions(field) {
+  if (Array.isArray(field.options) && field.options.length > 0) {
+    return field.options;
+  }
+
+  return [
+    { label: "نعم", value: "نعم" },
+    { label: "لا", value: "لا" },
+  ];
+}
+
 function buildFieldInput(field, value, error, handlers) {
   const { inputId, hintId, errorId } = fieldDomIds(field.key);
   const describedBy = [field.hint ? hintId : "", error ? errorId : ""].filter(Boolean).join(" ");
@@ -56,7 +67,7 @@ function buildFieldInput(field, value, error, handlers) {
       wrapper.setAttribute("aria-describedby", describedBy);
     }
 
-    field.options.forEach((option, optionIndex) => {
+    resolveRadioOptions(field).forEach((option, optionIndex) => {
       const label = document.createElement("label");
       label.className = "interview-form-radio";
 

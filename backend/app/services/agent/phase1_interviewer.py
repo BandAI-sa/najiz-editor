@@ -64,6 +64,8 @@ class Phase1InterviewerService:
     async def process_turn(self, session: Session, message: str) -> AgentTurnResult:
         case = await self.repo.get_case(session.classification.case_id) if session.classification else None
         form = session.interview_form or (self._build_interview_form(case) if case and case.requirements else None)
+        if form is not None:
+            form = self._normalize_form_definition(form)
         if form is None:
             return AgentTurnResult(
                 reply="لا يتوفر نموذج منظم لهذا التصنيف حالياً. يرجى العودة لاختيار التصنيف أو المحاولة لاحقاً.",
@@ -103,7 +105,7 @@ class Phase1InterviewerService:
                 inline_notice=notice,
             )
 
-        form = session.interview_form or self._build_interview_form(case)
+        form = self._normalize_form_definition(session.interview_form or self._build_interview_form(case))
         normalized_values = self._normalize_form_values(form, values)
         form_errors = self._validate_form(form, normalized_values)
 
@@ -173,6 +175,7 @@ class Phase1InterviewerService:
                     group_id=group_id,
                     group_label=group_label,
                     required=item.required,
+                    options=self._options_for_field(item.name, input_type),
                 )
             )
             support_items.append(
@@ -248,12 +251,14 @@ class Phase1InterviewerService:
                 )
             )
 
-        return InterviewForm(
-            title="نموذج بيانات الدعوى",
-            description=f"أكمل جميع الحقول الإلزامية الخاصة بدعوى {case.title} قبل الانتقال إلى الصياغة.",
-            submit_label="اعتماد البيانات والمتابعة",
-            fields=fields,
-            support_items=support_items,
+        return self._normalize_form_definition(
+            InterviewForm(
+                title="نموذج بيانات الدعوى",
+                description=f"أكمل جميع الحقول الإلزامية الخاصة بدعوى {case.title} قبل الانتقال إلى الصياغة.",
+                submit_label="اعتماد البيانات والمتابعة",
+                fields=fields,
+                support_items=support_items,
+            )
         )
 
     @staticmethod
@@ -270,11 +275,39 @@ class Phase1InterviewerService:
     def _input_type_for_label(label: str) -> str:
         if "تاريخ" in label:
             return "date"
-        if label.startswith("هل ") or label.startswith("هل"):
+        if Phase1InterviewerService._is_boolean_question(label):
             return "radio"
         if any(token in label for token in ("بيان", "موضوع", "سبب", "أسباب", "وصف", "تفصيل", "ملابسات")):
             return "textarea"
         return "text"
+
+    @staticmethod
+    def _is_boolean_question(label: str) -> bool:
+        normalized = label.strip()
+        return normalized.startswith("هل")
+
+    @classmethod
+    def _options_for_field(cls, label: str, input_type: str) -> list[InterviewFieldOption]:
+        if input_type != "radio":
+            return []
+        if cls._is_boolean_question(label):
+            return [
+                InterviewFieldOption(label="نعم", value="نعم"),
+                InterviewFieldOption(label="لا", value="لا"),
+            ]
+        return []
+
+    @classmethod
+    def _normalize_form_definition(cls, form: InterviewForm) -> InterviewForm:
+        normalized_fields = [
+            field.model_copy(
+                update={
+                    "options": field.options or cls._options_for_field(field.label, field.input_type),
+                }
+            )
+            for field in form.fields
+        ]
+        return form.model_copy(update={"fields": normalized_fields})
 
     @staticmethod
     def _default_hint(label: str) -> str:
