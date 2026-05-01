@@ -73,8 +73,13 @@ const interviewForm = {
   ],
 };
 
-function mockApi(page) {
+function cloneInterviewForm(form = interviewForm) {
+  return JSON.parse(JSON.stringify(form));
+}
+
+function mockApi(page, formFixture = interviewForm) {
   lastDraftPayload = null;
+  const form = cloneInterviewForm(formFixture);
 
   return page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -224,7 +229,7 @@ function mockApi(page) {
             flags: { missing_fields: ["بيانات المدعي", "تفاصيل النزاع"] },
             metadata: {},
             extracted_data: {},
-            interview_form: interviewForm,
+            interview_form: form,
             inline_notice: null,
           },
         }),
@@ -233,7 +238,7 @@ function mockApi(page) {
 
     if (pathname.endsWith("/api/sessions/session-1/interview-form") && method === "PATCH") {
       const values = body?.values || {};
-      const missingKeys = interviewForm.fields
+      const missingKeys = form.fields
         .filter((field) => field.required && !String(values[field.key] || "").trim())
         .map((field) => field.key);
 
@@ -263,7 +268,7 @@ function mockApi(page) {
             classification: {
               case_path: ["أحوال شخصية", "التصنيف العام", "إقامة حارس قضائي"],
             },
-            interview_form: interviewForm,
+            interview_form: form,
             inline_notice: {
               tone: "warning",
               icon: "⚠️",
@@ -301,7 +306,7 @@ function mockApi(page) {
           classification: {
             case_path: ["أحوال شخصية", "التصنيف العام", "إقامة حارس قضائي"],
           },
-          interview_form: interviewForm,
+          interview_form: form,
           inline_notice: null,
         }),
       });
@@ -367,7 +372,7 @@ function mockApi(page) {
             classification: {
               case_path: ["أحوال شخصية", "التصنيف العام", "إقامة حارس قضائي"],
             },
-            interview_form: interviewForm,
+            interview_form: form,
             inline_notice: null,
           }),
         });
@@ -664,4 +669,41 @@ test("supports manual classification on mobile and switches directly to form mod
   await expect(page.locator("#supports-panel")).toBeVisible();
   await expect(page.locator("#messages")).toBeHidden();
   await expect(page.locator("#phase-title")).toContainText("استكمال نموذج الدعوى");
+});
+
+test("renders yes-no controls even when a boolean field arrives without options", async ({ page }) => {
+  const malformedForm = cloneInterviewForm();
+  malformedForm.fields.splice(2, 0, {
+    key: "auth_03",
+    label: "هل قدم المدعى عليه ورقة تجارية للمدعي ومتعلقة بالدعوى؟- في حال كان المدعي مقرض -.",
+    hint: "اختر الإجابة الأقرب لما ورد في المستندات أو الوقائع المتاحة.",
+    placeholder: "",
+    aria_label:
+      "حقل إلزامي: هل قدم المدعى عليه ورقة تجارية للمدعي ومتعلقة بالدعوى؟- في حال كان المدعي مقرض -.",
+    input_type: "radio",
+    group_id: "case_details",
+    group_label: "تفاصيل الدعوى",
+    required: true,
+    source: "authentic",
+    badge_label: null,
+    options: [],
+  });
+
+  await page.unroute("**/api/**");
+  await mockApi(page, malformedForm);
+
+  await page.goto("/");
+  await chooseLLMConfig(page);
+  await page.locator("#message-input").fill("أريد رفع دعوى على تركة متنازع عليها.");
+  await page.locator("#send-btn").click();
+  await page.locator(".suggestion-card .btn").click();
+
+  const loanQuestion = page.locator(".interview-form-field").filter({
+    hasText: "هل قدم المدعى عليه ورقة تجارية للمدعي ومتعلقة بالدعوى؟- في حال كان المدعي مقرض -.",
+  });
+
+  await expect(loanQuestion).toBeVisible();
+  await expect(loanQuestion.locator('input[type="radio"]')).toHaveCount(2);
+  await expect(loanQuestion).toContainText("نعم");
+  await expect(loanQuestion).toContainText("لا");
 });
