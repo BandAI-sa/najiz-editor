@@ -11,12 +11,20 @@ from app.repositories.message_repository import MessageRepository
 from app.repositories.petition_repository import PetitionRepository
 from app.repositories.session_repository import SessionRepository
 from app.services.agent.agent_orchestrator import AgentOrchestrator
+from app.services.agent.answer_validator import AnswerValidationLayer
+from app.services.agent.completeness_policy import CompletenessPolicy
+from app.services.agent.contradiction_checker import ContradictionChecker
 from app.services.agent.guard_checker import GuardChecker
+from app.services.agent.memory_injector import ConversationMemoryInjector
 from app.services.agent.phase1_classifier import Phase1ClassifierService
 from app.services.agent.phase1_interviewer import Phase1InterviewerService
 from app.services.agent.phase2_drafter import Phase2DrafterService
 from app.services.agent.phase2_evidence import Phase2EvidenceService
 from app.services.agent.phase3_reviewer import Phase3ReviewerService
+from app.services.agent.question_humanizer import QuestionHumanizer
+from app.services.agent.repetition_guard import RepetitionGuard
+from app.services.agent.semantic_extractor import SemanticAnswerExtractor
+from app.services.agent.smart_interviewer import SmartInterviewerService
 from app.services.llm.factory import build_llm_client
 
 
@@ -51,6 +59,51 @@ def _resolve_llm_settings(request: Request):
     return settings.with_llm_selection(provider, requested_model)
 
 
+def _build_interviewer(settings, classification_repo, llm, message_repo):
+    any_smart_feature = (
+        settings.smart_extractor_enabled
+        or settings.answer_validation_enabled
+        or settings.repetition_guard_enabled
+        or settings.memory_injection_enabled
+        or settings.humanized_questions_enabled
+        or settings.completeness_check_enabled
+        or settings.contradiction_check_enabled
+    )
+    if not any_smart_feature:
+        return Phase1InterviewerService(classification_repo)
+
+    extractor = (
+        SemanticAnswerExtractor(
+            llm,
+            temperature=settings.interview_temperature,
+            max_output_tokens=settings.extractor_max_tokens,
+            confidence_threshold=settings.extractor_confidence_threshold,
+        )
+        if settings.smart_extractor_enabled
+        else None
+    )
+    validator = AnswerValidationLayer() if settings.answer_validation_enabled else None
+    guard = RepetitionGuard() if settings.repetition_guard_enabled else None
+    memory = (
+        ConversationMemoryInjector(message_repo, window_size=settings.memory_window_size)
+        if settings.memory_injection_enabled
+        else None
+    )
+    humanizer = QuestionHumanizer() if settings.humanized_questions_enabled else None
+    completeness = CompletenessPolicy() if settings.completeness_check_enabled else None
+    contradiction_checker = ContradictionChecker() if settings.contradiction_check_enabled else None
+    return SmartInterviewerService(
+        classification_repo,
+        extractor=extractor,
+        validator=validator,
+        guard=guard,
+        memory=memory,
+        humanizer=humanizer,
+        completeness=completeness,
+        contradiction_checker=contradiction_checker,
+    )
+
+
 def build_dependencies(request: Request):
     settings = _resolve_llm_settings(request)
     manager = request.app.state.mongo_manager
@@ -73,7 +126,7 @@ def build_dependencies(request: Request):
         llm,
         classify_temperature=settings.classify_temperature,
     )
-    interviewer = Phase1InterviewerService(classification_repo)
+    interviewer = _build_interviewer(settings, classification_repo, llm, message_repo)
     drafter = Phase2DrafterService(
         petition_repo,
         classification_repo,
