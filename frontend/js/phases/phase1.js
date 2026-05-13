@@ -323,20 +323,16 @@ export function createPhase1Controller() {
         case_id: state.classification.caseId,
       });
       const session = sessionPayload.session;
-      const mode = session.intake_mode || "conversational";
-      const nextStep = mode === "structured" ? "fill_form" : "select_intake_mode";
       updateState((draft) => {
         draft.currentPhase = 1;
-        draft.currentStep = nextStep;
+        draft.currentStep = "select_intake_mode";
         draft.sessionId = session.session_id;
         draft.classification.selectedPath = session.classification.case_path.join(" > ");
-        draft.interview.mode = mode;
         draft.interview.missingFields = session.flags.missing_fields || [];
-        draft.interview.currentPrompt = session.metadata.pending_prompt || "تم اعتماد التصنيف اليدوي.";
-        draft.interview.form = session.interview_form || null;
+        draft.interview.currentPrompt = session.metadata.pending_prompt || "تم اعتماد التصنيف. اختر طريقة إدخال البيانات.";
         draft.petition.roleSelection = "";
       });
-      pushChatMessage("assistant", session.metadata.pending_prompt || "تم اعتماد التصنيف اليدوي.");
+      pushChatMessage("assistant", session.metadata.pending_prompt || "تم اعتماد التصنيف. اختر طريقة إدخال البيانات.");
     },
 
     async onIntakeModeSelect(mode) {

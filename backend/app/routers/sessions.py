@@ -55,8 +55,9 @@ async def update_classification(
 
     session.classification = selection
     session.status = SessionStatus.INTERVIEW
-    interview_result = await deps["interviewer"].start(session)
-    session.metadata["pending_prompt"] = interview_result.reply
+    session.metadata["pending_prompt"] = (
+        "تم اعتماد التصنيف. اختر طريقة إدخال البيانات للمتابعة."
+    )
     await deps["session_repo"].save(session)
     return SessionResponse(session=session)
 
@@ -119,13 +120,16 @@ async def update_intake_mode(
 
     session.intake_mode = IntakeMode(payload.mode)
 
-    if (
-        session.intake_mode == IntakeMode.STRUCTURED
-        and session.classification
-    ):
-        result = await deps["interviewer"].structured.start(
-            session,
-        )
+    if session.classification:
+        interviewer = deps["interviewer"]
+        if session.intake_mode == IntakeMode.STRUCTURED:
+            result = await interviewer.structured.start(
+                session,
+            )
+        else:
+            result = await interviewer.smart.start(
+                session,
+            )
         session.metadata["pending_prompt"] = result.reply
 
     await deps["session_repo"].save(session)

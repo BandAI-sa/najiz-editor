@@ -386,7 +386,7 @@ const interviewFormComponent = createInterviewFormComponent(
     title: document.getElementById("interview-form-title"),
     description: document.getElementById("interview-form-description"),
     status: document.getElementById("interview-form-status"),
-    groups: document.getElementById("interview-form-groups"),
+    groupsContainer: document.getElementById("interview-form-groups"),
     submitButton: document.getElementById("interview-form-submit-btn"),
     supportsPanel: document.getElementById("supports-panel"),
     supportsList: document.getElementById("supports-list"),
