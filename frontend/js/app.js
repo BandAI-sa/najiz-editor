@@ -394,7 +394,7 @@ const interviewFormComponent = createInterviewFormComponent(
     collapseAllButton: document.getElementById("supports-collapse-all-btn"),
   },
   {
-    onFieldChange: (fieldKey, value) => {
+    onFieldInput: (fieldKey, value) => {
       updateState((draft) => {
         draft.interview.formValues[fieldKey] = value;
         const form = draft.interview.form;
@@ -404,6 +404,12 @@ const interviewFormComponent = createInterviewFormComponent(
         }
         if (draft.interview.formErrors[fieldKey]) {
           delete draft.interview.formErrors[fieldKey];
+        }
+        // Reset error state once user starts correcting fields
+        const remainingErrors = Object.values(draft.interview.formErrors).filter(Boolean);
+        if (remainingErrors.length === 0 && draft.interview.submitState === "error") {
+          draft.interview.submitState = "idle";
+          draft.interview.submitMessage = "";
         }
       });
     },
