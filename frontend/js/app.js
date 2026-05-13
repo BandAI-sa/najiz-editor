@@ -1,12 +1,20 @@
-import { configAPI } from "./api.js";
+import { configAPI, sessionsAPI } from "./api.js";
 import { createChatComponent } from "./components/chat.js";
 import { createClassificationComponent } from "./components/classification.js";
 import { createDraftRoleComponent } from "./components/draft-role.js";
+import { createInterviewFormComponent } from "./components/interview-form.js";
 import { createLLMConfigComponent } from "./components/llm-config.js";
 import { createPetitionComponent } from "./components/petition.js";
 import { createProgressComponent } from "./components/progress.js";
 import { createReviewComponent } from "./components/review.js";
-import { createPhase1Controller } from "./phases/phase1.js";
+import {
+  buildFormValues,
+  computeCompletion,
+  computeMissingFields,
+  createPhase1Controller,
+  persistSupportState,
+  validateForm,
+} from "./phases/phase1.js";
 import { createPhase2Controller } from "./phases/phase2.js";
 import { createPhase3Controller } from "./phases/phase3.js";
 import { getState, resetState, subscribe, updateState } from "./state.js";
@@ -371,6 +379,132 @@ const progressComponent = createProgressComponent({
   guardAlerts: document.getElementById("guard-alerts"),
 });
 
+const interviewFormComponent = createInterviewFormComponent(
+  {
+    panel: document.getElementById("interview-form-panel"),
+    path: document.getElementById("interview-form-path"),
+    title: document.getElementById("interview-form-title"),
+    description: document.getElementById("interview-form-description"),
+    status: document.getElementById("interview-form-status"),
+    groups: document.getElementById("interview-form-groups"),
+    submitButton: document.getElementById("interview-form-submit-btn"),
+    supportsPanel: document.getElementById("supports-panel"),
+    supportsList: document.getElementById("supports-list"),
+    expandAllButton: document.getElementById("supports-expand-all-btn"),
+    collapseAllButton: document.getElementById("supports-collapse-all-btn"),
+  },
+  {
+    onFieldChange: (fieldKey, value) => {
+      updateState((draft) => {
+        draft.interview.formValues[fieldKey] = value;
+        const form = draft.interview.form;
+        if (form) {
+          draft.interview.completion = computeCompletion(form, draft.interview.formValues);
+          draft.interview.missingFields = computeMissingFields(form, draft.interview.formValues);
+        }
+        if (draft.interview.formErrors[fieldKey]) {
+          delete draft.interview.formErrors[fieldKey];
+        }
+      });
+    },
+    onSubmit: async () => {
+      const state = getState();
+      const form = state.interview.form;
+      if (!form) return;
+
+      const errors = validateForm(form, state.interview.formValues);
+      if (Object.keys(errors).length > 0) {
+        updateState((draft) => {
+          draft.interview.formErrors = errors;
+          draft.interview.submitState = "error";
+          draft.interview.submitMessage = "لا يمكن المتابعة قبل استكمال جميع الحقول الإلزامية الظاهرة في النموذج.";
+        });
+        return;
+      }
+
+      updateState((draft) => {
+        draft.loading = true;
+        draft.loadingMessage = "جاري حفظ البيانات...";
+        draft.interview.submitState = "loading";
+      });
+
+      try {
+        const response = await sessionsAPI.submitInterviewForm(state.sessionId, state.interview.formValues);
+        updateState((draft) => {
+          draft.sessionId = response.session_id;
+          draft.interview.extractedData = response.extracted_data || {};
+          draft.interview.completion = response.completion_percentage ?? 100;
+          draft.interview.missingFields = response.flags?.missing_fields || [];
+          draft.interview.formErrors = response.metadata?.form_errors || {};
+
+          if (response.interview_form) {
+            draft.interview.form = response.interview_form;
+            draft.interview.formValues = buildFormValues(
+              response.interview_form,
+              response.extracted_data || {},
+              draft.interview.formValues
+            );
+          }
+
+          if (response.next_action === "go_to_phase2") {
+            draft.currentStep = "select_petition_role";
+            draft.interview.submitState = "success";
+            draft.interview.submitMessage = response.reply;
+            draft.petition.roleSelection = "";
+          } else {
+            draft.interview.submitState = Object.keys(draft.interview.formErrors).length > 0 ? "error" : "idle";
+            draft.interview.submitMessage = response.inline_notice?.message || response.reply;
+          }
+
+          draft.flags.needsHumanReview = response.flags?.needs_human_review || false;
+          draft.flags.criticalIssues = response.flags?.critical_issues || [];
+          draft.flags.guardIssues = response.flags?.guard_issues || [];
+        });
+      } catch (error) {
+        updateState((draft) => {
+          draft.interview.submitState = "error";
+          draft.interview.submitMessage = error instanceof Error ? error.message : "تعذر حفظ النموذج.";
+        });
+      } finally {
+        updateState((draft) => {
+          draft.loading = false;
+          draft.loadingMessage = "";
+        });
+      }
+    },
+    onSupportToggle: (supportId) => {
+      const state = getState();
+      updateState((draft) => {
+        const current = draft.interview.supportState.expandedById[supportId] ?? false;
+        draft.interview.supportState.expandedById[supportId] = !current;
+        const allIds = Object.keys(draft.interview.supportState.expandedById);
+        draft.interview.supportState.expandAll = allIds.length > 0 && allIds.every((id) => draft.interview.supportState.expandedById[id]);
+      });
+      persistSupportState(state.sessionId, getState().interview.supportState);
+    },
+    onExpandAll: () => {
+      const state = getState();
+      updateState((draft) => {
+        Object.keys(draft.interview.supportState.expandedById).forEach((id) => {
+          draft.interview.supportState.expandedById[id] = true;
+        });
+        draft.interview.supportState.expandAll = true;
+      });
+      persistSupportState(state.sessionId, getState().interview.supportState);
+    },
+    onCollapseAll: () => {
+      const state = getState();
+      updateState((draft) => {
+        Object.keys(draft.interview.supportState.expandedById).forEach((id) => {
+          draft.interview.supportState.expandedById[id] = false;
+        });
+        draft.interview.supportState.expandAll = false;
+      });
+      persistSupportState(state.sessionId, getState().interview.supportState);
+    },
+  }
+);
+
 const petitionComponent = createPetitionComponent(
   {
     panel: document.getElementById("phase2-panel"),
@@ -419,6 +553,14 @@ newSessionButton.addEventListener("click", async () => {
   await bootstrapClassifications();
 });
 
+// ── Intake mode selector wiring ─────────────────────────
+const intakeModePanel = document.getElementById("intake-mode-panel");
+const intakeModeChatBtn = document.getElementById("intake-mode-chat");
+const intakeModeFormBtn = document.getElementById("intake-mode-form");
+
+intakeModeChatBtn?.addEventListener("click", () => phase1.onIntakeModeSelect("conversational"));
+intakeModeFormBtn?.addEventListener("click", () => phase1.onIntakeModeSelect("structured"));
+
 subscribe((state) => {
   llmConfigComponent.render(state);
   chatComponent.render(state);
@@ -427,6 +569,7 @@ subscribe((state) => {
   progressComponent.render(state);
   petitionComponent.render(state);
   reviewComponent.render(state);
+  interviewFormComponent.render(state);
 
   phaseTitle.textContent =
     state.currentPhase === 1
@@ -445,6 +588,35 @@ subscribe((state) => {
   } else {
     draftButton.textContent = "بدء الصياغة";
   }
+
+  // ── Intake mode panel visibility ───────────────────
+  const showIntakeMode =
+    state.currentPhase === 1 &&
+    state.currentStep === "select_intake_mode" &&
+    !state.loading;
+  intakeModePanel?.classList.toggle("hidden", !showIntakeMode);
+
+  // ── Interview form panel visibility (structured mode only) ────
+  const showForm =
+    state.interview.mode === "structured" &&
+    state.interview.form &&
+    state.currentPhase === 1 &&
+    state.currentStep !== "select_intake_mode" &&
+    state.currentStep !== "select_petition_role";
+  document.getElementById("interview-form-panel")?.classList.toggle("hidden", !showForm);
+  document.getElementById("supports-panel")?.classList.toggle(
+    "hidden",
+    !showForm || !(state.interview.form?.support_items?.length > 0)
+  );
+
+  // ── Messages area (conversational mode or non-form steps) ─────
+  const showMessages =
+    state.interview.mode !== "structured" ||
+    !state.interview.form ||
+    state.currentStep === "select_intake_mode" ||
+    state.currentPhase >= 2;
+  document.getElementById("messages")?.classList.toggle("hidden", !showMessages && state.currentPhase < 2);
+
   document.getElementById("phase2-panel").classList.toggle(
     "hidden",
     state.currentPhase < 2 &&

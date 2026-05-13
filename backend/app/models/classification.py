@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import Field
 
@@ -76,6 +77,49 @@ class CaseSuggestion(BaseSchema):
     confidence: float
     rationale: str
     path: list[str]
+
+
+class InterviewFieldOption(BaseSchema):
+    label: str
+    value: str
+
+
+class InterviewField(BaseSchema):
+    key: str
+    label: str
+    hint: str = ""
+    placeholder: str = ""
+    aria_label: str
+    input_type: Literal[
+        "text", "textarea", "date", "number", "radio"
+    ] = "text"
+    group_id: str
+    group_label: str
+    required: bool = True
+    source: Literal["authentic", "agent"] = "authentic"
+    badge_label: str | None = None
+    options: list[InterviewFieldOption] = Field(
+        default_factory=list,
+    )
+
+
+class InterviewSupportItem(BaseSchema):
+    support_id: str
+    title: str
+    summary: str
+    details: str
+    aria_label: str
+    default_expanded: bool = False
+
+
+class InterviewForm(BaseSchema):
+    title: str
+    description: str
+    submit_label: str
+    fields: list[InterviewField] = Field(default_factory=list)
+    support_items: list[InterviewSupportItem] = Field(
+        default_factory=list,
+    )
 
 
 class ClassificationCatalog(BaseSchema):

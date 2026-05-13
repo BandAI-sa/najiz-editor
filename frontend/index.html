@@ -138,6 +138,84 @@
             <div id="draft-role-options" class="draft-role-options"></div>
           </section>
 
+          <section id="intake-mode-panel" class="intake-mode-panel hidden" dir="rtl" lang="ar" aria-live="polite">
+            <div class="intake-mode-heading">
+              <p class="eyebrow">طريقة إدخال البيانات</p>
+              <h3>كيف تفضل تعبئة بيانات الدعوى؟</h3>
+            </div>
+            <div class="intake-mode-options">
+              <button id="intake-mode-chat" type="button" class="intake-mode-card">
+                <span class="intake-mode-icon">💬</span>
+                <strong>محادثة ذكية</strong>
+                <p>حاور المساعد الذكي وأجب بكلامك</p>
+              </button>
+              <button id="intake-mode-form" type="button" class="intake-mode-card">
+                <span class="intake-mode-icon">📋</span>
+                <strong>نموذج تقليدي</strong>
+                <p>عبّئ النموذج يدوياً</p>
+              </button>
+            </div>
+          </section>
+
+          <div id="draft-role-actions" class="draft-role-actions hidden">
+            <button id="draft-btn-role" type="button" class="btn btn-primary" disabled>بدء الصياغة</button>
+          </div>
+
+          <section
+            id="interview-form-panel"
+            class="interview-form-panel hidden"
+            dir="rtl"
+            lang="ar"
+            aria-live="polite"
+          >
+            <div class="interview-form-shell">
+              <div class="interview-form-heading">
+                <p id="interview-form-path" class="interview-form-path">لم يتم اعتماد نوع الدعوى بعد.</p>
+                <h3 id="interview-form-title">نموذج بيانات الدعوى</h3>
+                <p id="interview-form-description" class="interview-form-description">
+                  أكمل الحقول الإلزامية ثم اعتمد البيانات للمتابعة.
+                </p>
+              </div>
+              <div id="interview-form-status" class="interview-form-status" role="status" aria-live="polite">
+                أكمل جميع الحقول الإلزامية ثم اعتمد البيانات للمتابعة.
+              </div>
+              <div id="interview-form-groups" class="interview-form-groups"></div>
+              <div class="interview-form-actions">
+                <button id="interview-form-submit-btn" type="button" class="btn btn-primary">
+                  اعتماد البيانات والمتابعة
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section id="supports-panel" class="supports-panel hidden" dir="rtl" lang="ar">
+            <div class="panel-head panel-head-inline">
+              <div>
+                <p class="eyebrow">الدعمات</p>
+                <h3>المراجع والتفاصيل المرتبطة</h3>
+              </div>
+              <div class="supports-actions">
+                <button
+                  id="supports-expand-all-btn"
+                  type="button"
+                  class="btn btn-ghost"
+                  aria-label="عرض تفاصيل جميع عناصر الدعم"
+                >
+                  عرض الكل
+                </button>
+                <button
+                  id="supports-collapse-all-btn"
+                  type="button"
+                  class="btn btn-ghost"
+                  aria-label="إخفاء تفاصيل جميع عناصر الدعم"
+                >
+                  إخفاء الكل
+                </button>
+              </div>
+            </div>
+            <div id="supports-list" class="supports-list"></div>
+          </section>
+
           <div id="messages" class="messages-list" aria-live="polite"></div>
 
           <form id="message-form" class="composer" autocomplete="off">

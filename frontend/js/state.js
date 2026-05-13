@@ -26,10 +26,20 @@ const initialState = () => ({
     selectedPath: "",
   },
   interview: {
+    mode: "conversational",
     extractedData: {},
     completion: 0,
     missingFields: [],
     currentPrompt: "",
+    form: null,
+    formValues: {},
+    formErrors: {},
+    submitState: "idle",
+    submitMessage: "",
+    supportState: {
+      expandAll: false,
+      expandedById: {},
+    },
   },
   petition: {
     petitionId: null,

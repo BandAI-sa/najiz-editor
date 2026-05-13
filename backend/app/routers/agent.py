@@ -43,6 +43,9 @@ async def classify(payload: AgentMessageRequest, request: Request) -> AgentRespo
         next_action=result.next_action,
         suggestions=result.suggestions,
         classification=session.classification,
+        interview_form=result.interview_form or session.interview_form,
+        inline_notice=result.inline_notice or session.inline_notice,
+        intake_mode=session.intake_mode,
     )
 
 
@@ -65,6 +68,9 @@ async def draft(payload: DraftRequest, request: Request) -> AgentResponse:
         next_action=result.next_action,
         petition=result.petition,
         classification=session.classification,
+        interview_form=result.interview_form or session.interview_form,
+        inline_notice=result.inline_notice or session.inline_notice,
+        intake_mode=session.intake_mode,
     )
 
 
@@ -104,6 +110,9 @@ async def review(payload: ReviewRequest, request: Request) -> AgentResponse:
         petition=result.petition,
         review_report=result.review,
         classification=session.classification,
+        interview_form=result.interview_form or session.interview_form,
+        inline_notice=result.inline_notice or session.inline_notice,
+        intake_mode=session.intake_mode,
     )
 
 
@@ -127,4 +136,7 @@ async def fix(payload: FixRequest, request: Request) -> AgentResponse:
         petition=result.petition,
         review_report=result.review,
         classification=session.classification,
+        interview_form=result.interview_form or session.interview_form,
+        inline_notice=result.inline_notice or session.inline_notice,
+        intake_mode=session.intake_mode,
     )

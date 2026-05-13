@@ -15,6 +15,7 @@ from app.services.agent.answer_validator import AnswerValidationLayer
 from app.services.agent.completeness_policy import CompletenessPolicy
 from app.services.agent.contradiction_checker import ContradictionChecker
 from app.services.agent.guard_checker import GuardChecker
+from app.services.agent.hybrid_interviewer import HybridInterviewerService
 from app.services.agent.memory_injector import ConversationMemoryInjector
 from app.services.agent.phase1_classifier import Phase1ClassifierService
 from app.services.agent.phase1_interviewer import Phase1InterviewerService
@@ -25,6 +26,7 @@ from app.services.agent.question_humanizer import QuestionHumanizer
 from app.services.agent.repetition_guard import RepetitionGuard
 from app.services.agent.semantic_extractor import SemanticAnswerExtractor
 from app.services.agent.smart_interviewer import SmartInterviewerService
+from app.services.agent.structured_interviewer import StructuredInterviewerService
 from app.services.llm.factory import build_llm_client
 
 
@@ -60,6 +62,8 @@ def _resolve_llm_settings(request: Request):
 
 
 def _build_interviewer(settings, classification_repo, llm, message_repo):
+    structured = StructuredInterviewerService(classification_repo)
+
     any_smart_feature = (
         settings.smart_extractor_enabled
         or settings.answer_validation_enabled
@@ -70,38 +74,40 @@ def _build_interviewer(settings, classification_repo, llm, message_repo):
         or settings.contradiction_check_enabled
     )
     if not any_smart_feature:
-        return Phase1InterviewerService(classification_repo)
-
-    extractor = (
-        SemanticAnswerExtractor(
-            llm,
-            temperature=settings.interview_temperature,
-            max_output_tokens=settings.extractor_max_tokens,
-            confidence_threshold=settings.extractor_confidence_threshold,
+        smart = Phase1InterviewerService(classification_repo)
+    else:
+        extractor = (
+            SemanticAnswerExtractor(
+                llm,
+                temperature=settings.interview_temperature,
+                max_output_tokens=settings.extractor_max_tokens,
+                confidence_threshold=settings.extractor_confidence_threshold,
+            )
+            if settings.smart_extractor_enabled
+            else None
         )
-        if settings.smart_extractor_enabled
-        else None
-    )
-    validator = AnswerValidationLayer() if settings.answer_validation_enabled else None
-    guard = RepetitionGuard() if settings.repetition_guard_enabled else None
-    memory = (
-        ConversationMemoryInjector(message_repo, window_size=settings.memory_window_size)
-        if settings.memory_injection_enabled
-        else None
-    )
-    humanizer = QuestionHumanizer() if settings.humanized_questions_enabled else None
-    completeness = CompletenessPolicy() if settings.completeness_check_enabled else None
-    contradiction_checker = ContradictionChecker() if settings.contradiction_check_enabled else None
-    return SmartInterviewerService(
-        classification_repo,
-        extractor=extractor,
-        validator=validator,
-        guard=guard,
-        memory=memory,
-        humanizer=humanizer,
-        completeness=completeness,
-        contradiction_checker=contradiction_checker,
-    )
+        validator = AnswerValidationLayer() if settings.answer_validation_enabled else None
+        guard = RepetitionGuard() if settings.repetition_guard_enabled else None
+        memory = (
+            ConversationMemoryInjector(message_repo, window_size=settings.memory_window_size)
+            if settings.memory_injection_enabled
+            else None
+        )
+        humanizer = QuestionHumanizer() if settings.humanized_questions_enabled else None
+        completeness = CompletenessPolicy() if settings.completeness_check_enabled else None
+        contradiction_checker = ContradictionChecker() if settings.contradiction_check_enabled else None
+        smart = SmartInterviewerService(
+            classification_repo,
+            extractor=extractor,
+            validator=validator,
+            guard=guard,
+            memory=memory,
+            humanizer=humanizer,
+            completeness=completeness,
+            contradiction_checker=contradiction_checker,
+        )
+
+    return HybridInterviewerService(structured, smart)
 
 
 def build_dependencies(request: Request):

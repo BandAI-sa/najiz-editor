@@ -6,14 +6,19 @@ from typing import Any
 
 from pydantic import Field
 
-from app.models.classification import ClassificationSelection
-from app.models.common import BaseSchema, GuardIssue, generate_uuid, now_utc
+from app.models.classification import ClassificationSelection, InterviewForm
+from app.models.common import BaseSchema, GuardIssue, InlineNotice, generate_uuid, now_utc
 
 
 class Phase(IntEnum):
     ONE = 1
     TWO = 2
     THREE = 3
+
+
+class IntakeMode(StrEnum):
+    STRUCTURED = "structured"
+    CONVERSATIONAL = "conversational"
 
 
 class SessionStatus(StrEnum):
@@ -40,6 +45,7 @@ class Session(BaseSchema):
     updated_at: datetime = Field(default_factory=now_utc)
     status: SessionStatus = SessionStatus.NEW
     phase: Phase = Phase.ONE
+    intake_mode: IntakeMode = IntakeMode.CONVERSATIONAL
     classification: ClassificationSelection | None = None
     extracted_data: dict[str, Any] = Field(default_factory=dict)
     extracted_data_ciphertext: str | None = None
@@ -49,3 +55,5 @@ class Session(BaseSchema):
     petition_version: int = 0
     flags: SessionFlags = Field(default_factory=SessionFlags)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    interview_form: InterviewForm | None = None
+    inline_notice: InlineNotice | None = None
