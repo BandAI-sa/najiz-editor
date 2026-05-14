@@ -283,6 +283,47 @@ class Settings(BaseSettings):
     petition_version_limit: int = 10
     dispute_value_threshold: int = 100000
 
+    smart_extractor_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("SMART_EXTRACTOR_ENABLED", "smart_extractor_enabled"),
+    )
+    answer_validation_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ANSWER_VALIDATION_ENABLED", "answer_validation_enabled"),
+    )
+    memory_injection_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("MEMORY_INJECTION_ENABLED", "memory_injection_enabled"),
+    )
+    repetition_guard_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("REPETITION_GUARD_ENABLED", "repetition_guard_enabled"),
+    )
+    memory_window_size: int = Field(
+        default=8,
+        validation_alias=AliasChoices("MEMORY_WINDOW_SIZE", "memory_window_size"),
+    )
+    extractor_max_tokens: int = Field(
+        default=400,
+        validation_alias=AliasChoices("EXTRACTOR_MAX_TOKENS", "extractor_max_tokens"),
+    )
+    extractor_confidence_threshold: float = Field(
+        default=0.5,
+        validation_alias=AliasChoices("EXTRACTOR_CONFIDENCE_THRESHOLD", "extractor_confidence_threshold"),
+    )
+    humanized_questions_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("HUMANIZED_QUESTIONS_ENABLED", "humanized_questions_enabled"),
+    )
+    completeness_check_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("COMPLETENESS_CHECK_ENABLED", "completeness_check_enabled"),
+    )
+    contradiction_check_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("CONTRADICTION_CHECK_ENABLED", "contradiction_check_enabled"),
+    )
+
     cors_origins_raw: str = Field(
         default="http://localhost:8080,http://127.0.0.1:8080",
         validation_alias="CORS_ORIGINS",
