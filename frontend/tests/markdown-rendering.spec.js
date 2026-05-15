@@ -1,8 +1,18 @@
 import { expect, test } from "@playwright/test";
 
+async function waitForLLMOverlayToClose(page) {
+  const overlay = page.locator("#llm-config-overlay");
+  await overlay.waitFor({ state: "hidden" });
+  await expect(overlay).toBeHidden();
+}
+
 async function chooseLLMConfig(page) {
   await expect(page.locator("#llm-config-overlay")).toBeVisible();
   await page.locator("#llm-config-save-btn").click();
+
+  // Explicitly wait for the overlay to be gone so it can't intercept pointer events.
+  await waitForLLMOverlayToClose(page);
+
   await expect(page.locator("#message-input")).toBeEnabled();
   await expect(page.locator("#send-btn")).toBeEnabled();
 }
@@ -395,7 +405,11 @@ test.beforeEach(async ({ page }) => {
         this.listeners = {};
         setTimeout(() => {
           this.emit("start", { type: "start", section: "facts" });
-          this.emit("chunk", { type: "chunk", section: "facts", content: "## وقائع مرتبة\n\n**تفصيل** عبر البث." });
+          this.emit("chunk", {
+            type: "chunk",
+            section: "facts",
+            content: "## وقائع مرتبة\n\n**تفصيل** عبر البث.",
+          });
           this.emit("start", { type: "start", section: "evidence" });
           this.emit("chunk", { type: "chunk", section: "evidence", content: "- مستند أول\n- مستند ثانٍ" });
           this.emit("start", { type: "start", section: "requests" });
@@ -410,7 +424,9 @@ test.beforeEach(async ({ page }) => {
       }
 
       emit(type, payload) {
-        (this.listeners[type] || []).forEach((callback) => callback({ data: JSON.stringify(payload) }));
+        (this.listeners[type] || []).forEach((callback) =>
+          callback({ data: JSON.stringify(payload) })
+        );
       }
 
       close() {}
@@ -429,13 +445,19 @@ test("renders markdown in the main drafting experience", async ({ page }) => {
   await page.locator("#message-input").fill("أريد رفع دعوى.");
   await page.locator("#send-btn").click();
 
-  await expect(page.locator(".message-card.assistant .markdown-content h2").last()).toContainText("هذه أقرب");
-  await expect(page.locator(".message-card.assistant .markdown-content strong").last()).toContainText("التصنيفات");
+  await expect(page.locator(".message-card.assistant .markdown-content h2").last()).toContainText(
+    "هذه أقرب"
+  );
+  await expect(
+    page.locator(".message-card.assistant .markdown-content strong").last()
+  ).toContainText("التصنيفات");
   await expect(page.locator("#messages")).not.toContainText("## هذه أقرب **التصنيفات** المتاحة.");
   await expect(page.locator(".suggestion-card .markdown-content h2")).toContainText("ترجيح");
 
   await page.locator(".suggestion-card .btn").click();
-  await expect(page.locator(".message-card.assistant .markdown-content h2").last()).toContainText("ما بيانات المدعي");
+  await expect(page.locator(".message-card.assistant .markdown-content h2").last()).toContainText(
+    "ما بيانات المدعي"
+  );
   await expect(page.locator("#messages")).not.toContainText("تم اعتماد **التصنيف**.");
 
   await page.locator("#message-input").fill("نواف");
@@ -452,7 +474,9 @@ test("renders markdown in the main drafting experience", async ({ page }) => {
   await page.locator("#review-btn").click();
   await expect(page.locator("#review-recommendation strong")).toContainText("جاهز للرفع");
   await expect(page.locator("#review-summary-text h2")).toContainText("ملخص");
-  await expect(page.locator("#review-issues-list .markdown-content strong").first()).toContainText("أضف");
+  await expect(page.locator("#review-issues-list .markdown-content strong").first()).toContainText(
+    "أضف"
+  );
   await expect(page.locator("#review-issues-list")).not.toContainText("## تحسين");
 });
 
@@ -461,8 +485,12 @@ test("renders markdown in the admin detail view", async ({ page }) => {
 
   await page.goto("/admin.html");
 
-  await expect(page.locator("#admin-detail .admin-text-block .markdown-content h2").first()).toContainText("وقائع مرتبة");
-  await expect(page.locator("#admin-detail .admin-text-block .markdown-content strong").first()).toContainText("تفصيل");
+  await expect(
+    page.locator("#admin-detail .admin-text-block .markdown-content h2").first()
+  ).toContainText("وقائع مرتبة");
+  await expect(
+    page.locator("#admin-detail .admin-text-block .markdown-content strong").first()
+  ).toContainText("تفصيل");
   await expect(page.locator("#admin-detail .admin-review-summary h2")).toContainText("ملخص");
   await expect(page.locator("#admin-detail")).not.toContainText("**تفصيل**");
   await expect(page.locator("#admin-detail")).not.toContainText("## ملخص");
