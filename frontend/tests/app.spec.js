@@ -285,7 +285,7 @@ function mockApi(page, formFixture = interviewForm) {
         contentType: "application/json",
         body: JSON.stringify({
           session_id: "session-1",
-          reply: "اكتملت البيانات المطلوبة. يمكنك الآن اختيار صيغة صحيفة الدعوى ثم بدء الصياغة.",
+          reply: "اكتملت البيانات المطلوبة. يمكنك الآن اختيار ص��غة صحيفة الدعوى ثم بدء الصياغة.",
           phase: 2,
           session_status: "READY_TO_DRAFT",
           completion_percentage: 100,
@@ -320,7 +320,7 @@ function mockApi(page, formFixture = interviewForm) {
           contentType: "application/json",
           body: JSON.stringify({
             session_id: "session-1",
-            reply: "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول طبيعة القضية، الأطراف المعنية، أو موضوع النزاع.",
+            reply: "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول ط�[...]",
             phase: 1,
             session_status: "NEW",
             completion_percentage: 0,
@@ -341,7 +341,7 @@ function mockApi(page, formFixture = interviewForm) {
               icon: "⚠️",
               title: "البيانات الحالية غير كافية لتحديد نوع الدعوى",
               message:
-                "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول طبيعة القضية، الأطراف المعنية، أو موضوع النزاع.",
+                "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول طبي[...]",
               aria_label: "تنبيه: تعذر تصنيف نوع الدعوى لعدم كفاية التفاصيل.",
             },
           }),
@@ -540,6 +540,12 @@ function mockApi(page, formFixture = interviewForm) {
   });
 }
 
+async function waitForLLMOverlayToClose(page) {
+  const overlay = page.locator("#llm-config-overlay");
+  await overlay.waitFor({ state: "hidden" });
+  await expect(overlay).toBeHidden();
+}
+
 async function chooseLLMConfig(page) {
   await expect(page.locator("#llm-config-overlay")).toBeVisible();
   await expect(page.locator("#llm-config-title")).toContainText("اختر مزود الذكاء");
@@ -555,6 +561,10 @@ async function chooseLLMConfig(page) {
 
   await page.getByRole("button", { name: "OpenAI" }).click();
   await page.locator("#llm-config-save-btn").click();
+
+  // Explicitly wait for the overlay to be gone so it can't intercept pointer events.
+  await waitForLLMOverlayToClose(page);
+
   await expect(page.locator("#message-input")).toBeEnabled();
   await expect(page.locator("#send-btn")).toBeEnabled();
 }
@@ -609,7 +619,9 @@ test("renders the curated model list and form-first lawsuit flow", async ({ page
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.id || ""))
     .toBe("interview-field-auth_01");
-  await page.locator("#interview-field-auth_02").fill("يوجد نزاع على إدارة التركة وطلب تعيين حارس قضائي.");
+  await page
+    .locator("#interview-field-auth_02")
+    .fill("يوجد نزاع على إدارة التركة وطلب تعيين حارس قضائي.");
   await page.getByLabel("نعم").check();
   await page.locator("#interview-form-submit-btn").click();
 
@@ -623,7 +635,9 @@ test("renders the curated model list and form-first lawsuit flow", async ({ page
   await page.locator("#draft-btn").click();
   await expect(page.locator("#phase2-panel")).toBeVisible();
   expect(lastDraftPayload?.petition_role).toBe("agent");
-  await expect(page.locator("#petition-content .petition-viewer")).toContainText("وقائع مولدة عبر البث.");
+  await expect(page.locator("#petition-content .petition-viewer")).toContainText(
+    "وقائع مولدة عبر البث."
+  );
 
   await page.locator("#review-btn").click();
   await expect(page.locator("#phase3-panel")).toBeVisible();
@@ -658,6 +672,9 @@ test("supports manual classification on mobile and switches directly to form mod
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await chooseLLMConfig(page);
+
+  // Extra safety: ensure overlay is not intercepting events before interacting with selects.
+  await waitForLLMOverlayToClose(page);
 
   await page.locator("#main-select").selectOption("main-01");
   await page.locator("#sub-select").selectOption("sub-01");
