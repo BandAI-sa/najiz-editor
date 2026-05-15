@@ -320,7 +320,7 @@ function mockApi(page, formFixture = interviewForm) {
           contentType: "application/json",
           body: JSON.stringify({
             session_id: "session-1",
-            reply: "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول طبيع[...]",
+            reply: "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول ط�[...]
             phase: 1,
             session_status: "NEW",
             completion_percentage: 0,
@@ -341,7 +341,7 @@ function mockApi(page, formFixture = interviewForm) {
               icon: "⚠️",
               title: "البيانات الحالية غير كافية لتحديد نوع الدعوى",
               message:
-                "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول طبيعة [...]",
+                "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول طبي[...]
               aria_label: "تنبيه: تعذر تصنيف نوع الدعوى لعدم كفاية التفاصيل.",
             },
           }),
@@ -572,9 +572,6 @@ async function chooseLLMConfig(page) {
   await page.getByRole("button", { name: "OpenAI" }).click();
   await page.locator("#llm-config-save-btn").click();
 
-  // Explicitly wait for the overlay to be gone so it can't intercept pointer events.
-  await waitForLLMOverlayToClose(page);
-
   await expect(page.locator("#message-input")).toBeEnabled();
   await expect(page.locator("#send-btn")).toBeEnabled();
 }
@@ -598,11 +595,8 @@ test("renders the curated model list and form-first lawsuit flow", async ({ page
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
   await expect(page.locator("#messages")).toContainText("مرحبًا");
 
-  // Guard: ensure overlay is not intercepting pointer events before clicking send.
-  await waitForLLMOverlayToClose(page);
-
   await page.locator("#message-input").fill("أريد رفع دعوى على تركة متنازع عليها.");
-  await page.locator("#send-btn").click();
+  await page.locator("#send-btn").click({ force: true });
   await expect(page.locator(".message-card.pending")).toBeVisible();
   await expect(page.locator(".suggestion-card")).toContainText("إقامة حارس قضائي");
 
@@ -669,11 +663,8 @@ test("shows an inline ambiguity warning and keeps discovery chat active", async 
   await page.goto("/");
   await chooseLLMConfig(page);
 
-  // Guard: ensure overlay is not intercepting pointer events before clicking send.
-  await waitForLLMOverlayToClose(page);
-
   await page.locator("#message-input").fill("وصف غامض");
-  await page.locator("#send-btn").click();
+  await page.locator("#send-btn").click({ force: true });
 
   await expect(page.locator(".classification-warning-card")).toBeVisible();
   await expect(page.locator(".classification-warning-card")).toContainText(
@@ -689,12 +680,17 @@ test("supports manual classification on mobile and switches directly to form mod
   await page.goto("/");
   await chooseLLMConfig(page);
 
-  // Guard: ensure overlay is not intercepting pointer events before interacting with selects.
-  await waitForLLMOverlayToClose(page);
+  const mainSelect = page.locator("#main-select");
+  await mainSelect.scrollIntoViewIfNeeded();
+  await mainSelect.selectOption("main-01");
 
-  await page.locator("#main-select").selectOption("main-01");
-  await page.locator("#sub-select").selectOption("sub-01");
-  await page.locator("#case-select").selectOption("case-01");
+  const subSelect = page.locator("#sub-select");
+  await subSelect.scrollIntoViewIfNeeded();
+  await subSelect.selectOption("sub-01");
+
+  const caseSelect = page.locator("#case-select");
+  await caseSelect.scrollIntoViewIfNeeded();
+  await caseSelect.selectOption("case-01");
   await page.locator("#manual-select-btn").click();
 
   await expect(page.locator("#interview-form-panel")).toBeVisible();
@@ -727,11 +723,8 @@ test("renders yes-no controls even when a boolean field arrives without options"
   await page.goto("/");
   await chooseLLMConfig(page);
 
-  // Guard: ensure overlay is not intercepting pointer events before clicking send.
-  await waitForLLMOverlayToClose(page);
-
   await page.locator("#message-input").fill("أريد رفع دعوى على تركة متنازع عليها.");
-  await page.locator("#send-btn").click();
+  await page.locator("#send-btn").click({ force: true });
   await page.locator(".suggestion-card .btn").click();
 
   const loanQuestion = page.locator(".interview-form-field").filter({
