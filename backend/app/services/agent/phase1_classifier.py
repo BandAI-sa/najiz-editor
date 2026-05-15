@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.core.exceptions import LLMParseError
 from app.models.classification import CaseSuggestion, ClassificationSelection
+from app.models.common import InlineNotice
 from app.models.session import Session, SessionStatus
 from app.repositories.classification_repository import ClassificationRepository
 from app.services.agent.models import AgentTurnResult
@@ -67,7 +68,27 @@ class Phase1ClassifierService:
                 next_action="manual_classification_required",
             )
 
+        if self._should_request_clarification(message, suggestions):
+            warning = self._build_ambiguity_warning()
+            session.inline_notice = warning
+            session.interview_form = None
+            session.metadata.pop("classification_suggestions", None)
+            logger.info(
+                "Classification marked ambiguous: provider=%s session_id=%s top_case_id=%s top_confidence=%.2f",
+                self.llm.provider,
+                session.session_id,
+                suggestions[0].case_id if suggestions else "none",
+                suggestions[0].confidence if suggestions else 0.0,
+            )
+            return AgentTurnResult(
+                reply=warning.message,
+                next_action="clarify_classification",
+                inline_notice=warning,
+            )
+
         session.status = SessionStatus.AWAITING_CLASSIFICATION_CONFIRM
+        session.inline_notice = None
+        session.interview_form = None
         session.metadata["classification_backend"] = self.llm.provider
         session.metadata["classification_suggestions"] = [item.model_dump(mode="json") for item in suggestions]
         logger.info(
@@ -105,6 +126,7 @@ class Phase1ClassifierService:
 
         session.classification = selected
         session.status = SessionStatus.INTERVIEW
+        session.inline_notice = None
         return AgentTurnResult(
             reply=f"تم اعتماد التصنيف: {selected.main_title} > {selected.sub_title} > {selected.case_title}",
             next_action="start_interview",
@@ -417,6 +439,46 @@ class Phase1ClassifierService:
     def _truncate_for_logs(value: str, limit: int = 240) -> str:
         text = value.strip()
         return text if len(text) <= limit else f"{text[:limit]}..."
+
+    def _should_request_clarification(
+        self,
+        message: str,
+        suggestions: list[CaseSuggestion],
+    ) -> bool:
+        meaningful_tokens = self.repo._tokenize(message)
+        if len(meaningful_tokens) < 2:
+            return True
+        if not suggestions:
+            return True
+
+        top = suggestions[0]
+        second = suggestions[1] if len(suggestions) > 1 else None
+        top_gap = top.confidence - second.confidence if second else top.confidence
+        distinct_mains = {item.main_id for item in suggestions[:2]}
+        distinct_subs = {item.sub_id for item in suggestions}
+
+        if top.confidence < 0.72:
+            return True
+        if second and top.confidence < 0.82 and top_gap <= 0.08:
+            return True
+        if len(distinct_mains) > 1 and top.confidence < 0.86:
+            return True
+        if len(distinct_subs) > 1 and top.confidence < 0.78 and top_gap <= 0.12:
+            return True
+        return False
+
+    @staticmethod
+    def _build_ambiguity_warning() -> InlineNotice:
+        return InlineNotice(
+            tone="warning",
+            icon="⚠️",
+            title="البيانات الحالية غير كافية لتحديد نوع الدعوى",
+            message=(
+                "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. "
+                "يرجى تقديم مزيد من التفاصيل حول طبيعة القضية، الأطراف المعنية، أو موضوع النزاع."
+            ),
+            aria_label="تنبيه: تعذر تصنيف نوع الدعوى لعدم كفاية التفاصيل.",
+        )
 
     async def _resolve_structured_suggestion(
         self,

@@ -40,6 +40,24 @@ function buildSuggestionCard(suggestion, index, onSelect) {
   return card;
 }
 
+function buildWarningCard(warning) {
+  const card = document.createElement("article");
+  card.className = "classification-warning-card";
+  card.setAttribute("dir", "rtl");
+  card.setAttribute("lang", "ar");
+  card.setAttribute("role", "alert");
+  card.setAttribute("aria-label", warning.aria_label || warning.title);
+
+  const title = document.createElement("strong");
+  title.textContent = `${warning.icon || "⚠️"} ${warning.title}`;
+
+  const message = document.createElement("p");
+  message.textContent = warning.message;
+
+  card.append(title, message);
+  return card;
+}
+
 export function createClassificationComponent(elements, handlers) {
   const { mainSelect, subSelect, caseSelect, manualButton, suggestionsPanel } = elements;
 
@@ -59,6 +77,8 @@ export function createClassificationComponent(elements, handlers) {
 
   return {
     render(state) {
+      const formMode = state.currentStep === "fill_form" || state.currentStep === "select_petition_role";
+
       fillSelect(mainSelect, state.classification.mains, "اختر التصنيف الرئيسي");
       mainSelect.value = state.classification.mainId || "";
 
@@ -73,6 +93,12 @@ export function createClassificationComponent(elements, handlers) {
       manualButton.disabled = !state.classification.caseId;
 
       suggestionsPanel.replaceChildren();
+      suggestionsPanel.classList.toggle("hidden", formMode);
+
+      if (!formMode && state.classification.warning) {
+        suggestionsPanel.appendChild(buildWarningCard(state.classification.warning));
+      }
+
       state.classification.suggestions.forEach((suggestion, index) => {
         suggestionsPanel.appendChild(buildSuggestionCard(suggestion, index, handlers.onSuggestionSelect));
       });

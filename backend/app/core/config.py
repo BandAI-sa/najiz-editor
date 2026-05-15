@@ -136,81 +136,44 @@ LLM_PROVIDER_LABELS: dict[LLMProviderName, str] = {
 LLM_PROVIDER_MODEL_CATALOG: dict[LLMProviderName, tuple[LLMModelSpec, ...]] = {
     "openai": (
         LLMModelSpec(
-            id="gpt-5.4",
-            label="GPT-5.4",
-            summary="Flagship OpenAI preset for the strongest reasoning and legal drafting quality.",
+            id="o3",
+            label="GPT O3",
+            summary="نموذج OpenAI مخصص للاستدلال العميق وتحليل الوقائع القانونية المعقدة.",
             tier="flagship",
             recommended=True,
-            notes="Best fit when quality matters more than latency or cost.",
+            notes="مناسب عندما تكون دقة التحليل القانوني مقدمة على السرعة.",
         ),
         LLMModelSpec(
             id="gpt-5.2",
-            label="GPT-5.2",
-            summary="High-end GPT-5 family model for professional writing and complex analysis.",
+            label="GPT 5.2",
+            summary="خيار احترافي متوازن للصياغة والتحليل القانوني المطول.",
             tier="advanced",
-            notes="A strong heavier option below GPT-5.4 for demanding tasks.",
+            notes="يوفر جودة قوية في التحرير والتحليل مع كلفة أقل من GPT 5.4.",
         ),
         LLMModelSpec(
-            id="gpt-5.2-chat-latest",
-            label="GPT-5.2 Chat Latest",
-            summary="ChatGPT-tuned GPT-5.2 alias for more conversational behavior.",
-            tier="chat",
-            stage="alias",
-            notes="Alias model that may track newer GPT-5.2 chat snapshots over time.",
-        ),
-        LLMModelSpec(
-            id="gpt-5.4-mini",
-            label="GPT-5.4 Mini",
-            summary="Balanced lower-latency option that still handles strong reasoning well.",
-            tier="balanced",
-            notes="Good default when you want speed without dropping too much quality.",
-        ),
-        LLMModelSpec(
-            id="gpt-5.4-nano",
-            label="GPT-5.4 Nano",
-            summary="Fastest and cheapest GPT-5.4-family preset for lighter, high-volume requests.",
-            tier="fast",
-            notes="Best for quick iterations and lower-cost workloads.",
+            id="gpt-5.4",
+            label="GPT 5.4",
+            summary="إصدار متقدم للصياغة القانونية الاحترافية والعمل الذي يحتاج دقة تحرير عالية.",
+            tier="advanced",
+            notes="خيار مناسب عند الحاجة إلى صياغة نهائية عالية الجودة ضمن نفس القائمة المعتمدة.",
         ),
     ),
     "gemini": (
         LLMModelSpec(
-            id="gemini-3-pro-preview",
-            label="Gemini 3 Pro Preview",
-            summary="Most capable Gemini preset here for deeper reasoning and harder drafting tasks.",
-            tier="flagship",
-            stage="preview",
-            notes="Preview model; quality is high, but behavior and availability can change.",
-        ),
-        LLMModelSpec(
-            id="gemini-3-flash-preview",
-            label="Gemini 3 Flash Preview",
-            summary="Newer Gemini preview with a strong speed-to-quality balance.",
-            tier="balanced",
-            stage="preview",
-            notes="Preview model tuned for fast, capable general work.",
-        ),
-        LLMModelSpec(
             id="gemini-2.5-pro",
             label="Gemini 2.5 Pro",
-            summary="Stable advanced Gemini model for complex legal reasoning and long-form drafting.",
+            summary="خيار Gemini الأساسي للاستدلال القانوني وصياغة المسودات المطولة.",
             tier="advanced",
-            notes="The strongest stable Gemini preset in this app.",
-        ),
-        LLMModelSpec(
-            id="gemini-2.5-flash",
-            label="Gemini 2.5 Flash",
-            summary="Stable default with strong price-performance for general legal workflows.",
-            tier="balanced",
             recommended=True,
-            notes="Best balance for everyday use if you prefer Gemini.",
+            notes="الاختيار المعتمد من Gemini للمهام القانونية اليومية والمعقدة.",
         ),
         LLMModelSpec(
-            id="gemini-2.5-flash-lite",
-            label="Gemini 2.5 Flash-Lite",
-            summary="Fastest budget-friendly Gemini preset for lower-latency tasks.",
-            tier="fast",
-            notes="Useful when responsiveness matters more than maximum depth.",
+            id="gemini-3-pro-preview",
+            label="Gemini 3 Pro Preview",
+            summary="معاينة متقدمة من Gemini للمهام التي تحتاج استدلالاً أوسع وتجربة أحدث.",
+            tier="flagship",
+            stage="preview",
+            notes="إصدار معاينة؛ قد تتغير السلوكيات أو الإتاحة مع التحديثات اللاحقة.",
         ),
     ),
 }
@@ -277,7 +240,7 @@ class Settings(BaseSettings):
     )
 
     openai_api_key: str | None = None
-    openai_model: str = "gpt-5.4-mini"
+    openai_model: str = "o3"
     openai_classifier_model: str | None = None
     openai_interviewer_model: str | None = None
     openai_drafter_model: str | None = None
@@ -285,7 +248,7 @@ class Settings(BaseSettings):
     openai_guard_model: str | None = None
 
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-2.5-pro"
     gemini_classifier_model: str | None = None
     gemini_interviewer_model: str | None = None
     gemini_drafter_model: str | None = None
@@ -552,6 +515,18 @@ class Settings(BaseSettings):
     def provider_label(self, provider: LLMProviderName) -> str:
         return LLM_PROVIDER_LABELS[provider]
 
+    def is_allowed_model_for_provider(self, provider: LLMProviderName, model: str | None) -> bool:
+        normalized_model = (model or "").strip()
+        if not normalized_model:
+            return False
+        return any(item.id == normalized_model for item in LLM_PROVIDER_MODEL_CATALOG[provider])
+
+    def resolve_allowed_model(self, provider: LLMProviderName, model: str | None = None) -> str:
+        normalized_model = (model or "").strip()
+        if self.is_allowed_model_for_provider(provider, normalized_model):
+            return normalized_model
+        return LLM_PROVIDER_MODEL_CATALOG[provider][0].id
+
     def configured_models_for_provider(self, provider: LLMProviderName) -> list[str]:
         if provider == "gemini":
             candidates = [
@@ -574,42 +549,31 @@ class Settings(BaseSettings):
 
         models: list[str] = []
         for model in candidates:
-            if model and model not in models:
-                models.append(model)
+            resolved_model = self.resolve_allowed_model(provider, model)
+            if resolved_model not in models:
+                models.append(resolved_model)
         return models
 
     def default_model_for_provider(self, provider: LLMProviderName) -> str:
         if provider == "gemini":
-            return self.gemini_model
-        return self.openai_model
+            return self.resolve_allowed_model(provider, self.gemini_model)
+        return self.resolve_allowed_model(provider, self.openai_model)
 
     def is_provider_available(self, provider: LLMProviderName) -> bool:
         requested = self.llm_enable if self.llm_enable is not None else False
         return requested and bool(self.api_key_for(provider))
 
     def model_catalog_for_provider(self, provider: LLMProviderName) -> list[LLMModelSpec]:
-        catalog = list(LLM_PROVIDER_MODEL_CATALOG[provider])
-        known_ids = {item.id for item in catalog}
         default_model = self.default_model_for_provider(provider)
-
-        for model_id in self.configured_models_for_provider(provider):
-            if model_id in known_ids:
-                continue
-            catalog.insert(
-                0,
-                LLMModelSpec(
-                    id=model_id,
-                    label=model_id,
-                    summary="Configured custom model from environment or per-capability override.",
-                    tier="custom",
-                    stage="custom",
-                    notes="Custom model entry discovered from the current backend configuration.",
-                    recommended=model_id == default_model,
-                ),
+        return [
+            LLMModelSpec(
+                **{
+                    **item.__dict__,
+                    "recommended": item.id == default_model,
+                }
             )
-            known_ids.add(model_id)
-
-        return catalog
+            for item in LLM_PROVIDER_MODEL_CATALOG[provider]
+        ]
 
     def suggested_models_for_provider(self, provider: LLMProviderName) -> list[str]:
         suggestions: list[str] = []
@@ -619,7 +583,7 @@ class Settings(BaseSettings):
         return suggestions
 
     def with_llm_selection(self, provider: LLMProviderName, model: str | None = None) -> "Settings":
-        selected_model = (model or self.default_model_for_provider(provider)).strip()
+        selected_model = self.resolve_allowed_model(provider, model or self.default_model_for_provider(provider))
         updates: dict[str, str] = {"llm_provider": provider}
 
         if provider == "gemini":
@@ -654,7 +618,7 @@ class Settings(BaseSettings):
                 "reviewer": self.gemini_reviewer_model,
                 "guard": self.gemini_guard_model,
             }
-            return overrides.get(capability) or self.gemini_model
+            return self.resolve_allowed_model("gemini", overrides.get(capability) or self.gemini_model)
 
         overrides = {
             "classifier": self.openai_classifier_model,
@@ -663,7 +627,7 @@ class Settings(BaseSettings):
             "reviewer": self.openai_reviewer_model,
             "guard": self.openai_guard_model,
         }
-        return overrides.get(capability) or self.openai_model
+        return self.resolve_allowed_model("openai", overrides.get(capability) or self.openai_model)
 
 
 @lru_cache
