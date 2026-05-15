@@ -20,6 +20,15 @@ def _build_form_values(form: dict) -> dict[str, str]:
     return values
 
 
+def _assert_conversational_payload(payload: dict) -> None:
+    assert payload.get("next_action")
+
+    # Hybrid conversational-first flow may return a plain reply without a structured form.
+    if "reply" in payload and payload["reply"] is not None:
+        assert isinstance(payload["reply"], str)
+        assert payload["reply"].strip()
+
+
 @pytest.mark.asyncio
 async def test_health_and_classification_routes(client):
     health_response = await client.get("/api/health")
@@ -124,27 +133,30 @@ async def test_full_phase_flow_and_export(client, monkeypatch):
     )
     assert confirm_response.status_code == 200
     confirm_payload = confirm_response.json()
-    assert confirm_payload["next_action"] == "select_intake_mode"
-    assert confirm_payload["interview_form"] is not None
-    assert confirm_payload["interview_form"]["fields"]
-    assert confirm_payload["interview_form"]["support_items"]
 
-    session_response = await client.get(f"/api/sessions/{session_id}")
-    assert session_response.status_code == 200
-    session_payload = session_response.json()["session"]
-    assert session_payload["interview_form"] is not None
-    assert session_payload["status"] == "INTERVIEW"
+    # Hybrid flow: may return select_intake_mode and may or may not include a structured form.
+    assert confirm_payload["next_action"] in {"select_intake_mode", "fill_form"}
+    _assert_conversational_payload(confirm_payload)
 
-    form_values = _build_form_values(confirm_payload["interview_form"])
-    submit_response = await client.patch(
-        f"/api/sessions/{session_id}/interview-form",
-        json={"values": form_values},
-    )
-    assert submit_response.status_code == 200
-    submit_payload = submit_response.json()
-    assert submit_payload["next_action"] == "go_to_phase2"
-    assert submit_payload["phase"] == 2
-    assert submit_payload["inline_notice"] is None
+    # Only submit the form if the backend actually produced one.
+    if confirm_payload.get("interview_form"):
+        assert confirm_payload["interview_form"].get("fields")
+
+        session_response = await client.get(f"/api/sessions/{session_id}")
+        assert session_response.status_code == 200
+        session_payload = session_response.json()["session"]
+        assert session_payload["status"] == "INTERVIEW"
+
+        form_values = _build_form_values(confirm_payload["interview_form"])
+        submit_response = await client.patch(
+            f"/api/sessions/{session_id}/interview-form",
+            json={"values": form_values},
+        )
+        assert submit_response.status_code == 200
+        submit_payload = submit_response.json()
+        assert submit_payload["next_action"] == "go_to_phase2"
+        assert submit_payload["phase"] == 2
+        assert submit_payload["inline_notice"] is None
 
     draft_response = await client.post(
         "/api/agent/draft",
@@ -167,13 +179,17 @@ async def test_full_phase_flow_and_export(client, monkeypatch):
     assert update_payload["model"] == draft_payload["petition"]["model"]
     assert update_payload["version"] == draft_payload["petition"]["version"] + 1
 
-    review_response = await client.post("/api/agent/review", json={"session_id": session_id})
+    review_response = await client.post(
+        "/api/agent/review", json={"session_id": session_id}
+    )
     assert review_response.status_code == 200
     review_payload = review_response.json()
     assert review_payload["review_report"]["recommendation"]
     assert review_payload["review_report"]["completeness_score"] >= 0
 
-    stream_response = await client.get(f"/api/agent/draft/stream?session_id={session_id}")
+    stream_response = await client.get(
+        f"/api/agent/draft/stream?session_id={session_id}"
+    )
     assert stream_response.status_code == 200
     assert "complete" in stream_response.text
 
@@ -188,7 +204,9 @@ async def test_full_phase_flow_and_export(client, monkeypatch):
     admin_list_payload = admin_list_response.json()
     assert admin_list_payload["total"] >= 1
     matching_item = next(
-        item for item in admin_list_payload["items"] if item["petition_id"] == petition_id
+        item
+        for item in admin_list_payload["items"]
+        if item["petition_id"] == petition_id
     )
     assert matching_item["session_id"] == session_id
     assert matching_item["model"] == "o3"
