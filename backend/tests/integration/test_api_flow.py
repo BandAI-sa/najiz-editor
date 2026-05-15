@@ -124,7 +124,7 @@ async def test_full_phase_flow_and_export(client, monkeypatch):
     )
     assert confirm_response.status_code == 200
     confirm_payload = confirm_response.json()
-    assert confirm_payload["next_action"] == "fill_form"
+    assert confirm_payload["next_action"] == "select_intake_mode"
     assert confirm_payload["interview_form"] is not None
     assert confirm_payload["interview_form"]["fields"]
     assert confirm_payload["interview_form"]["support_items"]
