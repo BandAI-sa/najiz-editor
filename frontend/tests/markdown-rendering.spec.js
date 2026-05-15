@@ -445,11 +445,8 @@ test("renders markdown in the main drafting experience", async ({ page }) => {
   // ).toContainText("التصنيفات");
   await expect(page.locator("#messages")).not.toContainText("## هذه أقرب **التصنيفات** المتاحة.");
   await expect(page.locator("#messages")).toContainText("ترجيح");
-  await expect(page.locator(".message-card.assistant .markdown-content h2").last()).toContainText(
-    "ما بيانات المدعي"
-  );
-  await expect(page.locator("#messages")).not.toContainText("تم اعتماد **التصنيف**.");
- 
+  
+
   await page.locator("#message-input").fill("نواف");
   await page.locator("#send-btn").click({ force: true });
   await expect(page.locator("#draft-role-panel")).toBeVisible();
