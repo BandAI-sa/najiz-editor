@@ -41,20 +41,19 @@
         <h2 id="llm-config-title">اختر مزود الذكاء والنموذج</h2>
         <p class="llm-config-copy">
           يظهر هذا السؤال مرة واحدة فقط عند أول دخول. بعد الحفظ سيبقى الشريط العلوي لعرض الإعداد الحالي
-          ويمكنك تغييره لاحقًا.
+          ويمكنك تغييره لاحقاً.
         </p>
 
         <div id="llm-provider-options" class="llm-provider-grid"></div>
 
-        <label class="field-label" for="llm-model-input">النموذج المعتمد</label>
+        <label class="field-label" for="llm-model-input">اسم النموذج</label>
         <input
           id="llm-model-input"
           class="select-field"
           type="text"
           list="llm-model-suggestions"
-          placeholder="يُحدد من البطاقات المعتمدة فقط"
+          placeholder="اختر من المقترحات أو اكتب اسم النموذج"
           autocomplete="off"
-          readonly
         />
         <datalist id="llm-model-suggestions"></datalist>
         <div id="llm-model-options" class="llm-model-grid"></div>
@@ -71,17 +70,14 @@
       <aside class="sidebar" dir="rtl">
         <section class="hero-card">
           <p class="eyebrow">Najiz Legal Agent v1.0</p>
-          <h1>وكيل قانوني ذكي لبناء صحيفة الدعوى خطوة بخطوة</h1>
+          <h1>وكيل قانوني ذكي لبناء صحيفة الدعوى</h1>
           <p class="hero-copy">
-            يبدأ بتصنيف نوع الدعوى، ثم يجمع الحقول المطلوبة، ثم يصوغ الصحيفة ويعرض مراجعة قانونية قابلة للإصلاح والتصدير.
+            تصنيف ذكي — جمع البيانات — صياغة الصحيفة — مراجعة قانونية.
           </p>
-          <div class="hero-actions">
-            <a class="btn btn-ghost" href="./admin.html" target="_blank" rel="noopener noreferrer">فتح لوحة الإدارة</a>
-          </div>
           <div class="hero-badges">
-            <span>تصنيف ذكي + يدوي</span>
-            <span>صياغة متدرجة</span>
-            <span>تدقيق ومراجعة</span>
+            <span>تصنيف</span>
+            <span>صياغة</span>
+            <span>مراجعة</span>
           </div>
         </section>
 
@@ -126,6 +122,28 @@
             <button id="new-session-btn" class="btn btn-ghost">جلسة جديدة</button>
           </div>
 
+          <nav id="step-indicator" class="step-indicator" aria-label="خطوات سير العمل">
+            <div class="step-item is-active" data-step="classify">
+              <span class="step-dot"></span>
+              <span class="step-label">التصنيف</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" data-step="intake">
+              <span class="step-dot"></span>
+              <span class="step-label">جمع البيانات</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" data-step="draft">
+              <span class="step-dot"></span>
+              <span class="step-label">الصياغة</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-item" data-step="review">
+              <span class="step-dot"></span>
+              <span class="step-label">المراجعة</span>
+            </div>
+          </nav>
+
           <div id="suggestions-panel" class="suggestions-grid"></div>
 
           <section id="draft-role-panel" class="draft-role-panel hidden" aria-live="polite">
@@ -139,8 +157,57 @@
             <div id="draft-role-options" class="draft-role-options"></div>
           </section>
 
+          <section id="intake-mode-panel" class="intake-mode-panel hidden" dir="rtl" lang="ar" aria-live="polite">
+            <div class="intake-mode-heading">
+              <p class="eyebrow">طريقة إدخال البيانات</p>
+              <h3>كيف تفضل تعبئة بيانات الدعوى؟</h3>
+            </div>
+            <div class="intake-mode-options">
+              <button id="intake-mode-chat" type="button" class="intake-mode-card">
+                <span class="intake-mode-icon" aria-hidden="true">💬</span>
+                <span class="intake-mode-text">
+                  <strong>محادثة مع المساعد الذكي</strong>
+                  <span>محادثة المساعد الذكي واجب بكلامك</span>
+                </span>
+              </button>
+              <button id="intake-mode-form" type="button" class="intake-mode-card">
+                <span class="intake-mode-icon" aria-hidden="true">📋</span>
+                <span class="intake-mode-text">
+                  <strong>نموذج إدخال منظم</strong>
+                  <span>عبّئ البيانات الأساسية عبر نموذج واضح</span>
+                </span>
+              </button>
+            </div>
+          </section>
+
+          <section
+            id="optional-enrichment-panel"
+            class="optional-enrichment-panel hidden"
+            dir="rtl"
+            lang="ar"
+            aria-live="polite"
+          >
+            <div class="optional-enrichment-inner">
+              <div class="optional-enrichment-copy">
+                <p class="eyebrow">خطوة اختيارية</p>
+                <h3 id="optional-enrichment-title">بيانات إضافية اختيارية</h3>
+                <p id="optional-enrichment-description" class="optional-enrichment-description">
+                  يمكنك إضافة تفاصيل تكميلية الآن لتحسين الصحيفة، أو تخطي هذه الخطوة والمتابعة مباشرةً للصياغة.
+                </p>
+              </div>
+              <div class="optional-enrichment-actions">
+                <button id="optional-enrichment-skip-btn" type="button" class="btn btn-ghost">
+                  التخطي والمتابعة
+                </button>
+                <button id="optional-enrichment-add-btn" type="button" class="btn btn-primary">
+                  إضافة بيانات إضافية
+                </button>
+              </div>
+            </div>
+          </section>
+
           <div id="draft-role-actions" class="draft-role-actions hidden">
-            <button id="draft-btn" type="button" class="btn btn-primary" disabled>بدء الصياغة</button>
+            <button id="draft-btn-role" type="button" class="btn btn-primary" disabled>بدء الصياغة</button>
           </div>
 
           <section
@@ -155,11 +222,11 @@
                 <p id="interview-form-path" class="interview-form-path">لم يتم اعتماد نوع الدعوى بعد.</p>
                 <h3 id="interview-form-title">نموذج بيانات الدعوى</h3>
                 <p id="interview-form-description" class="interview-form-description">
-                  أكمل الحقول الإلزامية ثم اعتمد البيانات للمتابعة.
+                  أكمل البيانات الأساسية المطلوبة، ثم تابع إلى الصياغة.
                 </p>
               </div>
               <div id="interview-form-status" class="interview-form-status" role="status" aria-live="polite">
-                أكمل جميع الحقول الإلزامية ثم اعتمد البيانات للمتابعة.
+                أكمل البيانات الأساسية المطلوبة، ثم تابع إلى الصياغة.
               </div>
               <div id="interview-form-groups" class="interview-form-groups"></div>
               <div class="interview-form-actions">
@@ -205,10 +272,11 @@
             <textarea
               id="message-input"
               class="composer-input"
-              placeholder="اكتب الوقائع أو أجب عن سؤال الوكيل..."
+              placeholder="اكتب هنا... صف الوقائع أو أجب على سؤال المساعد"
               rows="4"
             ></textarea>
             <div class="composer-actions">
+              <button id="draft-btn" type="button" class="btn btn-secondary" disabled>بدء الصياغة</button>
               <button id="send-btn" type="submit" class="btn btn-primary">إرسال</button>
             </div>
           </form>

@@ -30,6 +30,8 @@ FIELD_TYPE_KEYWORDS: list[tuple[str, str]] = [
     ("سجل", "id_number"),
     ("هاتف", "phone"),
     ("جوال", "phone"),
+    ("بريد", "email"),
+    ("email", "email"),
     ("اسم", "name"),
     ("عنوان", "address"),
 ]
@@ -39,6 +41,8 @@ UNKNOWN_INDICATORS = frozenset({
     "لا أعرف", "لا اعرف", "مو متأكد", "مش عارف",
     "لا أذكر", "لا اذكر", "ما أذكر", "ما اذكر", "مو ذاكر",
     "غير معروف", "لا يوجد", "ليس لدي",
+    "ما اعرف", "ماني عارف", "ماني متأكد", "مش متأكد",
+    "مدري", "غير متأكد", "ما عندي فكرة",
 })
 
 IRRELEVANT_INDICATORS = frozenset({
@@ -80,8 +84,39 @@ def _normalize_arabic_digits(value: str) -> str:
 
 
 def _is_unknown_answer(value: str) -> bool:
-    stripped = value.strip().rstrip(".؟?!")
-    return stripped in UNKNOWN_INDICATORS
+    stripped = value.strip().rstrip(".؟?!،,")
+    if not stripped:
+        return False
+    normalized = stripped.translate(
+        str.maketrans(
+            {
+                "أ": "ا",
+                "إ": "ا",
+                "آ": "ا",
+                "ى": "ي",
+                "ة": "ه",
+                "ؤ": "و",
+                "ئ": "ي",
+            }
+        )
+    )
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    if normalized in UNKNOWN_INDICATORS:
+        return True
+    return any(
+        phrase in normalized
+        for phrase in (
+            "ما اعرف",
+            "ماني عارف",
+            "ماني متأكد",
+            "مو متأكد",
+            "مش متأكد",
+            "ما ادري",
+            "مدري",
+            "غير متأكد",
+            "ما عندي فكرة",
+        )
+    )
 
 
 def _is_irrelevant_answer(value: str) -> bool:
@@ -166,6 +201,21 @@ def _validate_phone(value: str) -> ValidationResult:
     )
 
 
+def _validate_email(value: str) -> ValidationResult:
+    stripped = value.strip()
+    if re.fullmatch(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", stripped):
+        return ValidationResult(valid=True, cleaned_value=stripped.lower(), field_type="email")
+    return ValidationResult(
+        valid=False,
+        cleaned_value=value,
+        error_message=(
+            "يبدو أن البريد الإلكتروني غير مكتمل.\n"
+            "مثل: [example@email.com](mailto:example@email.com)"
+        ),
+        field_type="email",
+    )
+
+
 def _validate_id_number(value: str) -> ValidationResult:
     normalized = _normalize_arabic_digits(value.strip())
     digits = re.sub(r"[^\d]", "", normalized)
@@ -239,6 +289,7 @@ VALIDATORS: dict[str, callable] = {
     "date": _validate_date,
     "number": _validate_number,
     "phone": _validate_phone,
+    "email": _validate_email,
     "id_number": _validate_id_number,
     "name": _validate_name,
     "text": _validate_text,

@@ -92,7 +92,7 @@ function buildFieldInput(field, value, error, handlers) {
   const input = document.createElement("input");
   input.id = inputId;
   input.className = "interview-form-input";
-  input.type = field.input_type === "date" ? "date" : "text";
+  input.type = field.input_type === "date" ? "date" : field.input_type === "number" ? "number" : "text";
   input.value = value;
   input.placeholder = field.placeholder || "";
   input.setAttribute("aria-label", field.aria_label);
@@ -119,11 +119,11 @@ function buildFieldCard(field, value, error, handlers) {
     label.htmlFor = inputId;
   }
 
-  if (field.required) {
-    const required = document.createElement("span");
-    required.className = "interview-form-required";
-    required.textContent = "إلزامي";
-    label.appendChild(required);
+  if (!field.required) {
+    const optional = document.createElement("span");
+    optional.className = "interview-form-optional";
+    optional.textContent = "اختياري";
+    label.appendChild(optional);
   }
 
   header.appendChild(label);
@@ -148,6 +148,7 @@ function buildFieldCard(field, value, error, handlers) {
   errorText.className = "interview-form-error";
   errorText.textContent = error || "";
   errorText.classList.toggle("hidden", !error);
+  card.classList.toggle("has-error", Boolean(error));
 
   card.append(header, hint, input, errorText);
   return card;
@@ -180,7 +181,15 @@ function buildSupportItem(item, expanded, handlers) {
   toggle.setAttribute("aria-label", item.aria_label);
   toggle.setAttribute("aria-expanded", String(expanded));
   toggle.setAttribute("aria-controls", detailsId);
-  toggle.addEventListener("click", () => handlers.onToggleSupport(item.support_id, !expanded));
+  toggle.addEventListener("click", () => {
+    if (typeof handlers.onToggleSupport === "function") {
+      handlers.onToggleSupport(item.support_id, !expanded);
+      return;
+    }
+    if (typeof handlers.onSupportToggle === "function") {
+      handlers.onSupportToggle(item.support_id, !expanded);
+    }
+  });
 
   top.append(copy, toggle);
 
@@ -262,12 +271,30 @@ export function createInterviewFormComponent(elements, handlers) {
   } = elements;
 
   submitButton.addEventListener("click", handlers.onSubmit);
-  expandAllButton.addEventListener("click", () => handlers.onExpandAllSupports(true));
-  collapseAllButton.addEventListener("click", () => handlers.onExpandAllSupports(false));
+  expandAllButton.addEventListener("click", () => {
+    if (typeof handlers.onExpandAllSupports === "function") {
+      handlers.onExpandAllSupports(true);
+      return;
+    }
+    if (typeof handlers.onExpandAll === "function") {
+      handlers.onExpandAll();
+    }
+  });
+  collapseAllButton.addEventListener("click", () => {
+    if (typeof handlers.onExpandAllSupports === "function") {
+      handlers.onExpandAllSupports(false);
+      return;
+    }
+    if (typeof handlers.onCollapseAll === "function") {
+      handlers.onCollapseAll();
+    }
+  });
 
   return {
     render(state) {
-      const showForm = state.currentStep === "fill_form" && Boolean(state.interview.form);
+      const showForm =
+        (state.currentStep === "fill_form" || state.currentStep === "fill_supplementary_form") &&
+        Boolean(state.interview.form);
       panel.classList.toggle("hidden", !showForm);
       supportsPanel.classList.toggle("hidden", !showForm);
       if (!showForm || !state.interview.form) {
@@ -278,7 +305,7 @@ export function createInterviewFormComponent(elements, handlers) {
       const groups = groupFields(form.fields || []);
       path.textContent = state.classification.selectedPath || "لم يتم اعتماد نوع الدعوى بعد.";
       title.textContent = form.title;
-      description.textContent = form.description;
+      description.textContent = form.helper_text || form.description;
 
       if (state.interview.submitState === "error") {
         status.className = "interview-form-status warning";
@@ -288,14 +315,24 @@ export function createInterviewFormComponent(elements, handlers) {
         status.className = "interview-form-status";
       }
       status.textContent =
-        state.interview.submitMessage || "أكمل جميع الحقول الإلزامية ثم اعتمد البيانات للمتابعة.";
+        state.interview.submitMessage ||
+        (form.variant === "supplementary_optional"
+          ? "هذه البيانات اختيارية بالكامل. يمكنك تعبئة ما يتوفر لديك ثم المتابعة."
+          : "أكمل البيانات الأساسية المطلوبة، ثم تابع إلى الصياغة.");
 
       const focusState = captureFieldFocus(panel);
 
       groupsContainer.replaceChildren();
-      groups.forEach((group) => {
+      const coreGroups = groups.filter((group) => group.fields.some((field) => field.required));
+      const optionalGroups = groups.filter((group) => group.fields.every((field) => !field.required));
+      const orderedGroups = form.variant === "supplementary_optional" ? groups : [...coreGroups, ...optionalGroups];
+
+      orderedGroups.forEach((group) => {
         const section = document.createElement("section");
         section.className = "interview-form-group";
+        if (group.fields.every((field) => !field.required)) {
+          section.classList.add("optional");
+        }
 
         const heading = document.createElement("h3");
         heading.textContent = group.label;

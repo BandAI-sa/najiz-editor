@@ -5,7 +5,11 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from app.models.classification import CaseSuggestion, ClassificationSelection, InterviewForm
+from app.models.classification import (
+    CaseSuggestion,
+    ClassificationSelection,
+    InterviewForm,
+)
 from app.models.common import BaseSchema, InlineNotice
 from app.models.petition import PetitionDraft, PetitionSectionName, ReviewReport
 from app.models.session import Session, SessionFlags, SessionStatus
@@ -67,6 +71,14 @@ class UpdateClassificationRequest(BaseSchema):
 
 class InterviewFormSubmissionRequest(BaseSchema):
     values: dict[str, str] = Field(default_factory=dict)
+
+
+class UpdateIntakeModeRequest(BaseSchema):
+    mode: str
+
+
+class EnrichmentDecisionRequest(BaseSchema):
+    action: Literal["add", "skip"]
 
 
 class AgentMessageRequest(BaseSchema):
@@ -158,5 +170,6 @@ class AgentResponse(BaseSchema):
     classification: ClassificationSelection | None = None
     interview_form: InterviewForm | None = None
     inline_notice: InlineNotice | None = None
+    intake_mode: str = "conversational"
     petition: PetitionDraft | None = None
     review_report: ReviewReport | None = None

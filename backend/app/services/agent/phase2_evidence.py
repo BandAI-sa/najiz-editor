@@ -164,8 +164,20 @@ class Phase2EvidenceService:
     ) -> list[str]:
         lines: list[str] = []
         for field, value in extracted_data.items():
-            if any(token in field for token in ("عقد", "فاتورة", "حوالة", "إيصال", "رسائل", "مراسلات", "مستند", "صك", "كشف", "تقرير", "شهادة")):
-                lines.append(f"- مستند ظاهر من البيانات: {field} = {value}")
+            normalized = str(value).strip()
+            if not normalized:
+                continue
+            if any(
+                token in field
+                for token in (
+                    "عقد", "فاتورة", "حوالة", "إيصال", "رسائل",
+                    "رسالة", "مراسلات", "مستند", "صك", "كشف",
+                    "تقرير", "شهادة", "محضر", "بوليصة", "سند",
+                )
+            ):
+                lines.append(
+                    f"- مستند ظاهر من البيانات: {field} = {normalized}"
+                )
 
         if case_context and case_context.requirements:
             for item in case_context.requirements.attachments:
@@ -182,6 +194,13 @@ class Phase2EvidenceService:
         case_context: ClassificationNode | None,
         petition_role: str,
     ) -> list[str]:
+        def has_value(*tokens: str) -> bool:
+            return any(
+                any(token in field for token in tokens)
+                and str(value).strip()
+                for field, value in extracted_data.items()
+            )
+
         lines = [
             "- يجب أن تتضمن الصحيفة بيانات المدعي والمدعى عليه وموضوع الدعوى والطلبات والأسانيد بصورة واضحة.",
             "- يلزم استكمال بيانات الهوية والصفة والعنوان الوطني للمدعي بحسب متطلبات التقديم عبر ناجز.",
@@ -192,14 +211,18 @@ class Phase2EvidenceService:
         else:
             lines.append("- تم اختيار الصياغة بصيغة وكيل، لذا يجب بيان صفة الوكالة والتحقق من سريانها وصلاحية المرافعة، أو التنبيه إلى نقصها بصيغة [يحتاج استكمال].")
 
-        if not any("عنوان" in field for field in extracted_data):
+        if not has_value("عنوان", "العنوان الوطني", "مقر"):
             lines.append("- [يحتاج استكمال] العنوان الوطني أو عنوان الأطراف غير ظاهر في البيانات الحالية.")
-        if not any("هوية" in field or "سجل" in field for field in extracted_data):
+        if not has_value("هوية", "إقامة", "اقامة", "سجل", "رقم الهوية"):
             lines.append("- [يحتاج استكمال] بيانات الهوية/السجل للأطراف تحتاج استكمالًا قبل الرفع.")
-        if any("وكيل" in field for field in extracted_data):
+        if has_value("وكيل", "وكالة"):
             lines.append("- إذا كان مقدم الطلب وكيلًا، فيلزم التحقق من سريان الوكالة وتضمنها بند المرافعة.")
-        if any("ولاية" in field for field in extracted_data):
+        elif petition_role == "agent":
+            lines.append("- [يحتاج استكمال] بيانات الوكالة غير ظاهرة بوضوح رغم اختيار صيغة وكيل.")
+        if has_value("ولاية"):
             lines.append("- إذا كان مقدم الطلب وليًا، فيلزم إرفاق صك الولاية أو ما يثبت الصفة النظامية.")
+        if has_value("بريد", "email", "جوال", "هاتف", "اتصال"):
+            lines.append("- تتوفر بيانات تواصل للأطراف في الملف ويمكن الإشارة إليها عند الحاجة الإجرائية.")
 
         if case_context and case_context.requirements:
             for item in case_context.requirements.data_fields:

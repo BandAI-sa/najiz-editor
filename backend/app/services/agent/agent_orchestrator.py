@@ -68,6 +68,7 @@ class AgentOrchestrator:
             classification=session.classification,
             interview_form=result.interview_form or session.interview_form,
             inline_notice=result.inline_notice or session.inline_notice,
+            intake_mode=session.intake_mode,
             petition=result.petition,
             review_report=result.review,
         )
@@ -77,12 +78,13 @@ class AgentOrchestrator:
             return await self.classifier.classify(session, message, self.flat_index)
 
         if session.status == SessionStatus.AWAITING_CLASSIFICATION_CONFIRM:
-            result = await self.classifier.handle_confirmation(session, message)
+            result = await self.classifier.handle_confirmation(
+                session, message,
+            )
             if result.next_action == "start_interview":
-                interview_result = await self.interviewer.start(session)
-                interview_result.reply = f"{result.reply}\n\n{interview_result.reply}"
-                interview_result.classification = session.classification
-                return interview_result
+                session.status = SessionStatus.INTERVIEW
+                result.next_action = "select_intake_mode"
+                result.classification = session.classification
             return result
 
         if session.status == SessionStatus.INTERVIEW:

@@ -3,6 +3,45 @@ import { getState, pushChatMessage, updateState } from "../state.js";
 
 const SUPPORT_STATE_STORAGE_PREFIX = "najiz.support-state";
 
+function createDefaultEnrichmentState() {
+  return {
+    awaitingDecision: false,
+    mode: "none",
+    title: "",
+    description: "",
+    helperText: "",
+    canSkip: true,
+  };
+}
+
+function resolveEnrichmentState(response, interviewForm) {
+  const base = createDefaultEnrichmentState();
+  const nextAction = response.next_action;
+  if (nextAction === "offer_optional_enrichment") {
+    return {
+      ...base,
+      awaitingDecision: true,
+      mode: "choice",
+      title: "بيانات إضافية اختيارية",
+      description:
+        "يمكنك إضافة معلومات إضافية لتحسين الصحيفة قبل الصياغة النهائية، أو المتابعة مباشرة.",
+      helperText: "هذه الخطوة اختيارية بالكامل وغير مانعة للمتابعة.",
+    };
+  }
+
+  if (interviewForm?.variant === "supplementary_optional" || nextAction === "fill_supplementary_form") {
+    return {
+      ...base,
+      mode: "form",
+      title: "بيانات إضافية اختيارية",
+      description: interviewForm?.description || "يمكنك تعبئة ما يتوفر لديك من بيانات إضافية.",
+      helperText: interviewForm?.helper_text || "يمكنك ترك أي حقل فارغًا والمتابعة.",
+    };
+  }
+
+  return base;
+}
+
 function buildLoadingMessage(state) {
   if (state.currentPhase === 1 && state.currentStep === "welcome") {
     return "يجري تحليل الوقائع واستخراج أقرب تصنيف مناسب...";
@@ -14,6 +53,19 @@ function buildLoadingMessage(state) {
 
   return "يجري تجهيز الرد الآن...";
 }
+
+function pushAssistantMessage(content) {
+  const text = String(content || "").trim();
+  if (!text) return;
+  const state = getState();
+  const last = state.chat[state.chat.length - 1];
+  if (last?.role === "assistant" && last.content === text) {
+    return;
+  }
+  pushChatMessage("assistant", text);
+}
+
+// ── Structured form helpers (restored from original) ────────────────
 
 function readStoredSupportState(sessionId, form) {
   if (!sessionId || !form) {
@@ -94,7 +146,7 @@ function validateForm(form, values) {
   (form.fields || []).forEach((field) => {
     const value = String(values[field.key] || "").trim();
     if (field.required && !value) {
-      errors[field.key] = "هذا الحقل إلزامي.";
+      errors[field.key] = "يرجى إكمال هذا الحقل.";
       return;
     }
 
@@ -114,9 +166,12 @@ function validateForm(form, values) {
   return errors;
 }
 
-function applyResponseState(response, { pushToChat = true } = {}) {
+// ── Response handlers ───────────────────────────────────────────────
+
+function applyFormResponse(response) {
   const awaitingDraftRole = response.next_action === "go_to_phase2" && !response.petition;
   const responseForm = response.interview_form || null;
+  const enrichmentState = resolveEnrichmentState(response, responseForm);
 
   updateState((draft) => {
     draft.sessionId = response.session_id;
@@ -136,6 +191,7 @@ function applyResponseState(response, { pushToChat = true } = {}) {
     draft.flags.needsHumanReview = response.flags?.needs_human_review || false;
     draft.flags.criticalIssues = response.flags?.critical_issues || [];
     draft.flags.guardIssues = response.flags?.guard_issues || [];
+    draft.interview.enrichment = awaitingDraftRole ? createDefaultEnrichmentState() : enrichmentState;
 
     if (responseForm) {
       draft.interview.form = responseForm;
@@ -148,16 +204,25 @@ function applyResponseState(response, { pushToChat = true } = {}) {
       draft.interview.completion = computeCompletion(responseForm, draft.interview.formValues);
       draft.interview.missingFields = computeMissingFields(responseForm, draft.interview.formValues);
     } else {
-      draft.interview.form = draft.interview.form;
+      if (response.next_action === "offer_optional_enrichment") {
+        draft.interview.form = null;
+      }
       draft.interview.completion = response.completion_percentage ?? draft.interview.completion;
       draft.interview.missingFields = response.flags?.missing_fields || [];
     }
 
-    if (response.next_action === "fill_form") {
+    if (response.next_action === "fill_form" || response.next_action === "fill_supplementary_form") {
       draft.interview.formErrors = response.metadata?.form_errors || {};
       draft.interview.submitState = response.inline_notice ? "error" : "idle";
       draft.interview.submitMessage =
-        response.inline_notice?.message || "أكمل جميع الحقول الإلزامية ثم اعتمد البيانات للمتابعة.";
+        response.inline_notice?.message ||
+        (response.next_action === "fill_supplementary_form"
+          ? "هذه البيانات اختيارية. يمكنك تعبئة ما يتوفر لديك ثم المتابعة."
+          : "أكمل الحقول الأساسية المطلوبة، ثم تابع إلى الصياغة.");
+    } else if (response.next_action === "offer_optional_enrichment") {
+      draft.interview.formErrors = {};
+      draft.interview.submitState = "idle";
+      draft.interview.submitMessage = response.inline_notice?.message || response.reply;
     } else if (awaitingDraftRole) {
       draft.interview.formErrors = {};
       draft.interview.submitState = "success";
@@ -172,10 +237,115 @@ function applyResponseState(response, { pushToChat = true } = {}) {
     }
   });
 
-  if (pushToChat) {
-    pushChatMessage("assistant", response.reply);
+  pushAssistantMessage(response.reply);
+}
+
+function applyAgentResponse(response) {
+  const awaitingDraftRole = response.next_action === "go_to_phase2" && !response.petition;
+  const enrichmentState = resolveEnrichmentState(response, response.interview_form || null);
+  updateState((draft) => {
+    draft.sessionId = response.session_id;
+    draft.currentPhase = awaitingDraftRole ? 1 : response.phase;
+    draft.currentStep = awaitingDraftRole ? "select_petition_role" : response.next_action;
+    draft.classification.suggestions = response.suggestions || [];
+    if (response.classification) {
+      draft.classification.selectedPath = response.classification.case_path.join(" > ");
+    }
+    draft.interview.extractedData = response.extracted_data || {};
+    draft.interview.missingFields = response.flags?.missing_fields || [];
+    draft.interview.completion = response.completion_percentage ?? 0;
+    draft.interview.currentPrompt = awaitingDraftRole
+      ? "هل تريد صياغة الدعوى أصيل أم وكيل؟"
+      : response.reply;
+    draft.interview.enrichment = awaitingDraftRole ? createDefaultEnrichmentState() : enrichmentState;
+    draft.flags.needsHumanReview = response.flags?.needs_human_review || false;
+    draft.flags.criticalIssues = response.flags?.critical_issues || [];
+    draft.flags.guardIssues = response.flags?.guard_issues || [];
+    if (awaitingDraftRole) {
+      draft.petition.roleSelection = "";
+    } else if (response.phase < 2) {
+      draft.petition.roleSelection = "";
+    }
+    if (!awaitingDraftRole && response.phase >= 2) {
+      draft.currentPhase = 2;
+    }
+  });
+  pushAssistantMessage(response.reply);
+}
+
+function applyResponse(response) {
+  if (
+    response.intake_mode === "structured" &&
+    (response.interview_form ||
+      response.next_action === "offer_optional_enrichment" ||
+      response.next_action === "fill_supplementary_form")
+  ) {
+    applyFormResponse(response);
+  } else {
+    applyAgentResponse(response);
   }
 }
+
+// ── Exported helpers for app.js ─────────────────────────────────────
+
+export {
+  applyResponse,
+  buildFormValues,
+  computeCompletion,
+  computeMissingFields,
+  persistSupportState,
+  readStoredSupportState,
+  validateForm,
+};
+
+// ── Chat intent bridging ────────────────────────────────────────────
+
+const _ENRICHMENT_ADD_WORDS = new Set([
+  "نعم", "أيوه", "ايوه", "اكمل", "أكمل", "إضافة", "اضافة", "add", "yes",
+]);
+const _ENRICHMENT_SKIP_WORDS = new Set([
+  "تخطي", "تخطى", "تجاوز", "لا", "skip", "no",
+]);
+const _ROLE_PRINCIPAL_WORDS = new Set([
+  "أصيل", "اصيل", "principal",
+]);
+const _ROLE_AGENT_WORDS = new Set([
+  "وكيل", "agent",
+]);
+const _MODE_CHAT_WORDS = new Set([
+  "محادثة", "محادثه", "chat", "conversational",
+]);
+const _MODE_FORM_WORDS = new Set([
+  "نموذج", "form", "structured",
+]);
+let enrichmentDecisionInFlightKey = null;
+
+function matchChatIntent(message, step) {
+  const token = message.trim().replace(/[.!؟?،,]+$/g, "").trim();
+  const lower = token.toLowerCase();
+
+  if (step === "offer_optional_enrichment") {
+    if (lower.includes("إضافة بيانات إضافية") || lower.includes("اضافة بيانات اضافية")) {
+      return { action: "enrichment", value: "add" };
+    }
+    if (_ENRICHMENT_ADD_WORDS.has(lower)) return { action: "enrichment", value: "add" };
+    if (_ENRICHMENT_SKIP_WORDS.has(lower)) return { action: "enrichment", value: "skip" };
+  }
+
+  if (step === "select_petition_role") {
+    if (_ROLE_PRINCIPAL_WORDS.has(lower)) return { action: "role", value: "principal" };
+    if (_ROLE_AGENT_WORDS.has(lower)) return { action: "role", value: "agent" };
+  }
+
+  if (step === "select_intake_mode") {
+    if (_MODE_CHAT_WORDS.has(lower)) return { action: "mode", value: "conversational" };
+    if (_MODE_FORM_WORDS.has(lower)) return { action: "mode", value: "structured" };
+  }
+
+  return null;
+}
+
+// ── Controller ──────────────────────────────────────────────────────
 
 export function createPhase1Controller() {
   return {
@@ -191,8 +361,37 @@ export function createPhase1Controller() {
       if (state.loading) {
         return;
       }
+      let userMessageAlreadyPushed = false;
 
-      pushChatMessage("user", message);
+      const intent = matchChatIntent(message, state.currentStep);
+      if (intent) {
+        pushChatMessage("user", message);
+        userMessageAlreadyPushed = true;
+        if (intent.action === "enrichment") {
+          const handled = await this.onOptionalEnrichmentDecision(intent.value);
+          if (handled) return;
+        }
+        if (intent.action === "role") {
+          updateState((draft) => {
+            draft.petition.roleSelection = intent.value;
+            draft.petition.saveState = "idle";
+            draft.petition.saveMessage = "";
+          });
+          pushAssistantMessage(
+            intent.value === "agent"
+              ? "تم اختيار صيغة «وكيل». يمكنك الآن بدء الصياغة."
+              : "تم اختيار صيغة «أصيل». يمكنك الآن بدء الصياغة.",
+          );
+          return;
+        }
+        if (intent.action === "mode") {
+          return this.onIntakeModeSelect(intent.value);
+        }
+      }
+
+      if (!userMessageAlreadyPushed) {
+        pushChatMessage("user", message);
+      }
       updateState((draft) => {
         draft.loading = true;
         draft.loadingMessage = buildLoadingMessage(state);
@@ -200,11 +399,10 @@ export function createPhase1Controller() {
 
       try {
         const response = await agentAPI.message(state.sessionId, message, state.currentPhase);
-        applyResponseState(response);
+        applyResponse(response);
       } catch (error) {
-        pushChatMessage(
-          "assistant",
-          error instanceof Error ? error.message : "تعذر إتمام الطلب حالياً. حاول مرة أخرى."
+        pushAssistantMessage(
+          error instanceof Error ? error.message : "تعذر إتمام الطلب حاليًا. حاول مرة أخرى."
         );
       } finally {
         updateState((draft) => {
@@ -270,108 +468,152 @@ export function createPhase1Controller() {
         case_id: state.classification.caseId,
       });
       const session = sessionPayload.session;
-      const interviewForm = session.interview_form || null;
-      const formValues = buildFormValues(interviewForm, session.extracted_data || {});
-      const supportState = readStoredSupportState(session.session_id, interviewForm);
-
       updateState((draft) => {
         draft.currentPhase = 1;
-        draft.currentStep = interviewForm ? "fill_form" : "ask_field";
+        draft.currentStep = session.metadata?.pending_next_action || "select_intake_mode";
         draft.sessionId = session.session_id;
         draft.classification.selectedPath = session.classification.case_path.join(" > ");
-        draft.classification.warning = session.inline_notice || null;
-        draft.interview.extractedData = session.extracted_data || {};
-        draft.interview.form = interviewForm;
-        draft.interview.formValues = formValues;
-        draft.interview.formErrors = {};
-        draft.interview.submitState = "idle";
-        draft.interview.submitMessage = interviewForm
-          ? "أكمل جميع الحقول الإلزامية ثم اعتمد البيانات للمتابعة."
-          : "تم اعتماد التصنيف اليدوي.";
-        draft.interview.supportState = supportState;
-        draft.interview.missingFields = computeMissingFields(interviewForm, formValues);
-        draft.interview.completion = computeCompletion(interviewForm, formValues);
-        draft.interview.currentPrompt = interviewForm
-          ? interviewForm.description
-          : "تم اعتماد التصنيف اليدوي.";
+        draft.interview.missingFields = session.flags.missing_fields || [];
+        draft.interview.currentPrompt =
+          session.metadata.pending_prompt || "تم اعتماد التصنيف. اختر طريقة إدخال البيانات المناسبة لك.";
+        draft.interview.enrichment = createDefaultEnrichmentState();
         draft.petition.roleSelection = "";
       });
-
-      persistSupportState(session.session_id, supportState);
+      pushAssistantMessage(
+        session.metadata.pending_prompt || "تم اعتماد التصنيف. اختر طريقة إدخال البيانات المناسبة لك."
+      );
     },
 
-    async onSuggestionSelect(rank) {
-      await this.sendMessage(String(rank));
-    },
-
-    onFormFieldInput(fieldKey, value) {
-      updateState((draft) => {
-        draft.interview.formValues[fieldKey] = value;
-        delete draft.interview.formErrors[fieldKey];
-        draft.classification.warning = null;
-        draft.interview.submitState = "idle";
-        draft.interview.submitMessage = "";
-        draft.interview.completion = computeCompletion(draft.interview.form, draft.interview.formValues);
-        draft.interview.missingFields = computeMissingFields(draft.interview.form, draft.interview.formValues);
-      });
-    },
-
-    onToggleSupport(supportId, expanded) {
+    async onIntakeModeSelect(mode) {
       const state = getState();
-      updateState((draft) => {
-        draft.interview.supportState.expandedById[supportId] = expanded;
-        draft.interview.supportState.expandAll = Object.values(
-          draft.interview.supportState.expandedById
-        ).every(Boolean);
-      });
-      persistSupportState(state.sessionId, getState().interview.supportState);
-    },
-
-    onExpandAllSupports(expanded) {
-      const state = getState();
-      updateState((draft) => {
-        const nextMap = {};
-        (draft.interview.form?.support_items || []).forEach((item) => {
-          nextMap[item.support_id] = expanded;
-        });
-        draft.interview.supportState.expandedById = nextMap;
-        draft.interview.supportState.expandAll = expanded;
-      });
-      persistSupportState(state.sessionId, getState().interview.supportState);
-    },
-
-    async onSubmitForm() {
-      const state = getState();
-      if (!state.sessionId || !state.interview.form) {
-        return;
-      }
-
-      const errors = validateForm(state.interview.form, state.interview.formValues);
-      if (Object.keys(errors).length > 0) {
-        updateState((draft) => {
-          draft.interview.formErrors = errors;
-          draft.interview.submitState = "error";
-          draft.interview.submitMessage = "يرجى استكمال الحقول الإلزامية الموضحة أدناه.";
-          draft.interview.completion = computeCompletion(draft.interview.form, draft.interview.formValues);
-          draft.interview.missingFields = computeMissingFields(draft.interview.form, draft.interview.formValues);
-        });
-        return;
-      }
+      const sessionId = state.sessionId;
+      if (!sessionId) return;
 
       updateState((draft) => {
         draft.loading = true;
-        draft.loadingMessage = "يجري اعتماد بيانات الدعوى والتحقق منها...";
+        draft.loadingMessage = "جاري تفعيل طريقة الإدخال المختارة...";
       });
 
       try {
-        const response = await sessionsAPI.submitInterviewForm(state.sessionId, state.interview.formValues);
-        applyResponseState(response, { pushToChat: false });
+        const result = await sessionsAPI.updateIntakeMode(sessionId, mode);
+        const session = result.session;
+        const pendingNextAction = session.metadata?.pending_next_action || "";
+        updateState((draft) => {
+          draft.interview.mode = mode;
+          draft.interview.enrichment = createDefaultEnrichmentState();
+          draft.interview.currentPrompt = session.metadata?.pending_prompt || draft.interview.currentPrompt;
+          if (mode === "structured") {
+            draft.currentStep = pendingNextAction || "fill_form";
+            const shouldShowOffer = pendingNextAction === "offer_optional_enrichment";
+            draft.interview.form = shouldShowOffer ? null : session.interview_form || null;
+            if (draft.interview.form) {
+              draft.interview.formValues = buildFormValues(
+                draft.interview.form,
+                session.extracted_data || {},
+                draft.interview.formValues
+              );
+              draft.interview.supportState = readStoredSupportState(sessionId, draft.interview.form);
+              draft.interview.completion = computeCompletion(draft.interview.form, draft.interview.formValues);
+              draft.interview.missingFields = computeMissingFields(draft.interview.form, draft.interview.formValues);
+            }
+            if (shouldShowOffer) {
+              draft.interview.enrichment = {
+                awaitingDecision: true,
+                mode: "choice",
+                title: "بيانات إضافية اختيارية",
+                description:
+                  "يمكنك إضافة معلومات إضافية لتحسين الصحيفة قبل الصياغة النهائية، أو المتابعة مباشرة.",
+                helperText: "هذه الخطوة اختيارية بالكامل وغير مانعة للمتابعة.",
+                canSkip: true,
+              };
+            } else if (pendingNextAction === "go_to_phase2") {
+              draft.currentStep = "select_petition_role";
+              draft.petition.roleSelection = "";
+            }
+          } else {
+            if (pendingNextAction === "offer_optional_enrichment") {
+              draft.currentStep = "offer_optional_enrichment";
+              draft.interview.enrichment = {
+                awaitingDecision: true,
+                mode: "choice",
+                title: "بيانات إضافية اختيارية",
+                description:
+                  "يمكنك إضافة معلومات إضافية لتحسين الصحيفة قبل الصياغة النهائية، أو المتابعة مباشرة.",
+                helperText: "هذه الخطوة اختيارية بالكامل وغير مانعة للمتابعة.",
+                canSkip: true,
+              };
+            } else if (pendingNextAction === "go_to_phase2") {
+              draft.currentStep = "select_petition_role";
+              draft.petition.roleSelection = "";
+            } else {
+              draft.currentStep = pendingNextAction || "ask_field";
+            }
+            draft.interview.form = null;
+          }
+        });
+        if (session.metadata?.pending_prompt) {
+          pushAssistantMessage(session.metadata.pending_prompt);
+        }
+      } catch (error) {
+        pushAssistantMessage(
+          error instanceof Error ? error.message : "تعذر تغيير طريقة الإدخال."
+        );
       } finally {
         updateState((draft) => {
           draft.loading = false;
           draft.loadingMessage = "";
         });
       }
+    },
+
+    async onSuggestionSelect(rank) {
+      await this.sendMessage(String(rank));
+    },
+
+    async onOptionalEnrichmentDecision(action) {
+      const state = getState();
+      if (!state.sessionId || state.loading) {
+        return false;
+      }
+      if (state.currentStep !== "offer_optional_enrichment" || !state.interview.enrichment.awaitingDecision) {
+        return false;
+      }
+      const normalizedAction = action === "add" ? "add" : "skip";
+      const decisionKey = `${state.sessionId}:${state.currentStep}:${normalizedAction}`;
+      if (enrichmentDecisionInFlightKey === decisionKey) {
+        return false;
+      }
+      enrichmentDecisionInFlightKey = decisionKey;
+      updateState((draft) => {
+        draft.loading = true;
+        draft.loadingMessage =
+          normalizedAction === "add"
+            ? "جاري تجهيز خطوة البيانات الإضافية..."
+            : "جاري المتابعة إلى اختيار صيغة الصحيفة...";
+        // Hide the decision panel immediately to prevent duplicate clicks/transitions.
+        draft.interview.enrichment.awaitingDecision = false;
+      });
+      try {
+        const response = await sessionsAPI.decideOptionalEnrichment(state.sessionId, normalizedAction);
+        applyResponse(response);
+        return true;
+      } catch (error) {
+        pushAssistantMessage(
+          error instanceof Error ? error.message : "تعذر تحديث خطوة البيانات الإضافية."
+        );
+        updateState((draft) => {
+          if (draft.currentStep === "offer_optional_enrichment") {
+            draft.interview.enrichment.awaitingDecision = true;
+          }
+        });
+      } finally {
+        enrichmentDecisionInFlightKey = null;
+        updateState((draft) => {
+          draft.loading = false;
+          draft.loadingMessage = "";
+        });
+      }
+      return false;
     },
   };
 }

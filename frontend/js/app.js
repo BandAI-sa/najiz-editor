@@ -1,4 +1,4 @@
-import { configAPI } from "./api.js";
+import { configAPI, sessionsAPI } from "./api.js";
 import { createChatComponent } from "./components/chat.js";
 import { createClassificationComponent } from "./components/classification.js";
 import { createDraftRoleComponent } from "./components/draft-role.js";
@@ -7,7 +7,15 @@ import { createLLMConfigComponent } from "./components/llm-config.js";
 import { createPetitionComponent } from "./components/petition.js";
 import { createProgressComponent } from "./components/progress.js";
 import { createReviewComponent } from "./components/review.js";
-import { createPhase1Controller } from "./phases/phase1.js";
+import {
+  applyResponse,
+  buildFormValues,
+  computeCompletion,
+  computeMissingFields,
+  createPhase1Controller,
+  persistSupportState,
+  validateForm,
+} from "./phases/phase1.js";
 import { createPhase2Controller } from "./phases/phase2.js";
 import { createPhase3Controller } from "./phases/phase3.js";
 import { getState, resetState, subscribe, updateState } from "./state.js";
@@ -16,40 +24,58 @@ const LLM_SELECTION_STORAGE_KEY = "najiz.llm.selection";
 
 const FALLBACK_LLM_CONFIG = {
   current_provider: "openai",
-  current_model: "o3",
+  current_model: "gpt-5.4-mini",
   providers: [
     {
       id: "openai",
       label: "OpenAI",
       enabled: true,
-      default_model: "o3",
-      suggested_models: ["o3", "gpt-5.2", "gpt-5.4"],
+      default_model: "gpt-5.4-mini",
+      suggested_models: ["gpt-5.4", "gpt-5.2", "gpt-5.2-chat-latest", "gpt-5.4-mini", "gpt-5.4-nano"],
       models: [
         {
-          id: "o3",
-          label: "GPT O3",
-          summary: "نموذج مخصص للاستدلال القانوني العميق وتحليل الوقائع المعقدة.",
+          id: "gpt-5.4",
+          label: "GPT-5.4",
+          summary: "Flagship OpenAI preset for the strongest reasoning and legal drafting quality.",
           tier: "flagship",
           stage: "stable",
-          notes: "مناسب عندما تكون دقة التحليل مقدمة على السرعة.",
+          notes: "Best fit when quality matters more than latency or cost.",
           recommended: true,
         },
         {
           id: "gpt-5.2",
-          label: "GPT 5.2",
-          summary: "خيار احترافي متوازن للصياغة القانونية والتحليل المطول.",
+          label: "GPT-5.2",
+          summary: "High-end GPT-5 family model for professional writing and complex analysis.",
           tier: "advanced",
           stage: "stable",
-          notes: "يوفر جودة قوية في التحرير مع تكلفة أقل من GPT 5.4.",
+          notes: "A strong heavier option below GPT-5.4 for demanding tasks.",
           recommended: false,
         },
         {
-          id: "gpt-5.4",
-          label: "GPT 5.4",
-          summary: "إصدار متقدم للصياغة القانونية المهنية والعمل الذي يحتاج دقة تحرير عالية.",
-          tier: "advanced",
+          id: "gpt-5.2-chat-latest",
+          label: "GPT-5.2 Chat Latest",
+          summary: "ChatGPT-tuned GPT-5.2 alias for more conversational behavior.",
+          tier: "chat",
+          stage: "alias",
+          notes: "Alias model that may move with newer GPT-5.2 chat snapshots.",
+          recommended: false,
+        },
+        {
+          id: "gpt-5.4-mini",
+          label: "GPT-5.4 Mini",
+          summary: "Balanced lower-latency option that still handles strong reasoning well.",
+          tier: "balanced",
           stage: "stable",
-          notes: "خيار مناسب للحالات التي تحتاج صياغة نهائية عالية الجودة.",
+          notes: "Good default when you want speed without dropping too much quality.",
+          recommended: false,
+        },
+        {
+          id: "gpt-5.4-nano",
+          label: "GPT-5.4 Nano",
+          summary: "Fastest and cheapest GPT-5.4-family preset for lighter, high-volume requests.",
+          tier: "fast",
+          stage: "stable",
+          notes: "Best for quick iterations and lower-cost workloads.",
           recommended: false,
         },
       ],
@@ -58,25 +84,58 @@ const FALLBACK_LLM_CONFIG = {
       id: "gemini",
       label: "Google Gemini",
       enabled: true,
-      default_model: "gemini-2.5-pro",
-      suggested_models: ["gemini-2.5-pro", "gemini-3-pro-preview"],
+      default_model: "gemini-2.5-flash",
+      suggested_models: [
+        "gemini-3-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+      ],
       models: [
-        {
-          id: "gemini-2.5-pro",
-          label: "Gemini 2.5 Pro",
-          summary: "خيار Gemini الأساسي للاستدلال القانوني وصياغة المسودات المطولة.",
-          tier: "advanced",
-          stage: "stable",
-          notes: "الاختيار المعتمد من Gemini للمهام القانونية اليومية والمعقدة.",
-          recommended: true,
-        },
         {
           id: "gemini-3-pro-preview",
           label: "Gemini 3 Pro Preview",
-          summary: "معاينة متقدمة من Gemini للمهام التي تحتاج استدلالًا أوسع وتجربة أحدث.",
+          summary: "Most capable Gemini preset here for deeper reasoning and harder drafting tasks.",
           tier: "flagship",
           stage: "preview",
-          notes: "إصدار معاينة وقد تتغير سلوكياته أو إتاحته مع التحديثات اللاحقة.",
+          notes: "Preview model; quality is high, but behavior and availability can change.",
+          recommended: false,
+        },
+        {
+          id: "gemini-3-flash-preview",
+          label: "Gemini 3 Flash Preview",
+          summary: "Newer Gemini preview with a strong speed-to-quality balance.",
+          tier: "balanced",
+          stage: "preview",
+          notes: "Preview model tuned for fast, capable general work.",
+          recommended: false,
+        },
+        {
+          id: "gemini-2.5-pro",
+          label: "Gemini 2.5 Pro",
+          summary: "Stable advanced Gemini model for complex legal reasoning and long-form drafting.",
+          tier: "advanced",
+          stage: "stable",
+          notes: "The strongest stable Gemini preset in this app.",
+          recommended: false,
+        },
+        {
+          id: "gemini-2.5-flash",
+          label: "Gemini 2.5 Flash",
+          summary: "Stable default with strong price-performance for general legal workflows.",
+          tier: "balanced",
+          stage: "stable",
+          notes: "Best balance for everyday use if you prefer Gemini.",
+          recommended: true,
+        },
+        {
+          id: "gemini-2.5-flash-lite",
+          label: "Gemini 2.5 Flash-Lite",
+          summary: "Fastest budget-friendly Gemini preset for lower-latency tasks.",
+          tier: "fast",
+          stage: "stable",
+          notes: "Useful when responsiveness matters more than maximum depth.",
           recommended: false,
         },
       ],
@@ -92,7 +151,7 @@ function normalizeProviderModels(provider) {
   return (provider.suggested_models || []).map((modelId) => ({
     id: modelId,
     label: modelId,
-    summary: "نموذج معتمد من الإعدادات الحالية.",
+    summary: "Model option discovered from backend suggestions.",
     tier: "custom",
     stage: "custom",
     notes: "",
@@ -147,17 +206,7 @@ function findPreferredProvider(providers, requestedProvider) {
 }
 
 function resolveModel(provider, requestedModel) {
-  if (!provider) {
-    return "";
-  }
-
-  const matched =
-    provider.models.find((model) => model.id === requestedModel?.trim()) ||
-    provider.models.find((model) => model.id === provider.default_model) ||
-    provider.models[0] ||
-    null;
-
-  return matched?.id || "";
+  return requestedModel?.trim() || provider?.default_model || "";
 }
 
 function resolveDraftRoleLabel(role) {
@@ -170,22 +219,6 @@ function resolveDraftRoleLabel(role) {
   return "";
 }
 
-function resolvePhaseTitle(state) {
-  if (state.currentStep === "fill_form") {
-    return "مرحلة استكمال نموذج الدعوى";
-  }
-  if (state.currentStep === "select_petition_role") {
-    return "مرحلة اختيار صيغة الدعوى";
-  }
-  if (state.currentPhase === 1) {
-    return "مرحلة التصنيف";
-  }
-  if (state.currentPhase === 2) {
-    return "مرحلة الصياغة";
-  }
-  return "مرحلة المراجعة";
-}
-
 function seedWelcomeMessage() {
   updateState((draft) => {
     if (draft.chat.length > 0) {
@@ -194,7 +227,7 @@ function seedWelcomeMessage() {
 
     draft.chat.push({
       role: "assistant",
-      content: "مرحبًا. صف لي وقائع الدعوى أو اختر التصنيف يدويًا لنبدأ.",
+      content: "مرحبًا بك. صف الوقائع الأساسية للدعوى، أو اختر التصنيف يدويًا لنبدأ.",
       timestamp: new Date().toISOString(),
     });
   });
@@ -224,6 +257,7 @@ const llmConfigComponent = createLLMConfigComponent(
     overlay: document.getElementById("llm-config-overlay"),
     providerOptions: document.getElementById("llm-provider-options"),
     modelInput: document.getElementById("llm-model-input"),
+    modelSuggestions: document.getElementById("llm-model-suggestions"),
     modelOptions: document.getElementById("llm-model-options"),
     hint: document.getElementById("llm-config-hint"),
     saveButton: document.getElementById("llm-config-save-btn"),
@@ -257,24 +291,25 @@ const llmConfigComponent = createLLMConfigComponent(
         }
 
         draft.llm.draftProvider = provider.id;
-        draft.llm.draftModel = resolveModel(provider, provider.default_model);
+        draft.llm.draftModel = provider.default_model;
       });
     },
     onModelSelect: (modelId) => {
       updateState((draft) => {
-        const provider = draft.llm.providers.find((item) => item.id === draft.llm.draftProvider);
-        if (!provider?.models.some((model) => model.id === modelId)) {
-          return;
-        }
         draft.llm.draftModel = modelId;
       });
     },
-    onSave: async () => {
+    onModelInput: (value) => {
+      updateState((draft) => {
+        draft.llm.draftModel = value;
+      });
+    },
+    onSave: async (value) => {
       const state = getState();
       const provider = state.llm.providers.find(
         (item) => item.id === state.llm.draftProvider && item.enabled
       );
-      const model = resolveModel(provider, state.llm.draftModel);
+      const model = value.trim() || resolveModel(provider, state.llm.draftModel);
       if (!provider || !model) {
         return;
       }
@@ -327,14 +362,29 @@ const draftRoleComponent = createDraftRoleComponent(
     hint: document.getElementById("draft-role-hint"),
   },
   {
-    onSelect: (role) =>
+    onSelect: async (role) => {
       updateState((draft) => {
         draft.petition.roleSelection = role;
         draft.petition.saveState = "idle";
         draft.petition.saveMessage = "";
-      }),
+      });
+
+      // Keep card-click flow authoritative: role selection should advance immediately.
+      if (getState().currentStep === "select_petition_role") {
+        await phase2.startDraft();
+      }
+    },
   }
 );
+
+const progressComponent = createProgressComponent({
+  label: document.getElementById("progress-label"),
+  bar: document.getElementById("progress-bar"),
+  value: document.getElementById("progress-value"),
+  count: document.getElementById("missing-fields-count"),
+  extractedFields: document.getElementById("extracted-fields"),
+  guardAlerts: document.getElementById("guard-alerts"),
+});
 
 const interviewFormComponent = createInterviewFormComponent(
   {
@@ -351,21 +401,99 @@ const interviewFormComponent = createInterviewFormComponent(
     collapseAllButton: document.getElementById("supports-collapse-all-btn"),
   },
   {
-    onFieldInput: (fieldKey, value) => phase1.onFormFieldInput(fieldKey, value),
-    onToggleSupport: (supportId, expanded) => phase1.onToggleSupport(supportId, expanded),
-    onExpandAllSupports: (expanded) => phase1.onExpandAllSupports(expanded),
-    onSubmit: () => phase1.onSubmitForm(),
+    onFieldInput: (fieldKey, value) => {
+      updateState((draft) => {
+        draft.interview.formValues[fieldKey] = value;
+        const form = draft.interview.form;
+        if (form) {
+          draft.interview.completion = computeCompletion(form, draft.interview.formValues);
+          draft.interview.missingFields = computeMissingFields(form, draft.interview.formValues);
+        }
+        if (draft.interview.formErrors[fieldKey]) {
+          delete draft.interview.formErrors[fieldKey];
+        }
+        // Reset error state once user starts correcting fields
+        const remainingErrors = Object.values(draft.interview.formErrors).filter(Boolean);
+        if (remainingErrors.length === 0 && draft.interview.submitState === "error") {
+          draft.interview.submitState = "idle";
+          draft.interview.submitMessage = "";
+        }
+      });
+    },
+    onSubmit: async () => {
+      const state = getState();
+      const form = state.interview.form;
+      if (!form) return;
+
+      const errors = validateForm(form, state.interview.formValues);
+      if (Object.keys(errors).length > 0) {
+        updateState((draft) => {
+          draft.interview.formErrors = errors;
+          draft.interview.submitState = "error";
+          draft.interview.submitMessage =
+            form.variant === "supplementary_optional"
+              ? "يرجى مراجعة الحقول التي تحتوي تنبيهًا، أو اترك الحقول الاختيارية فارغة ثم تابع."
+              : "لا تزال هناك بيانات أساسية غير مكتملة. يرجى استكمالها للمتابعة.";
+        });
+        return;
+      }
+
+      updateState((draft) => {
+        draft.loading = true;
+        draft.loadingMessage =
+          form.variant === "supplementary_optional"
+            ? "جاري حفظ البيانات الإضافية..."
+            : "جاري حفظ البيانات الأساسية...";
+        draft.interview.submitState = "loading";
+      });
+
+      try {
+        const response = await sessionsAPI.submitInterviewForm(state.sessionId, state.interview.formValues);
+        applyResponse(response);
+      } catch (error) {
+        updateState((draft) => {
+          draft.interview.submitState = "error";
+          draft.interview.submitMessage = error instanceof Error ? error.message : "تعذر حفظ النموذج.";
+        });
+      } finally {
+        updateState((draft) => {
+          draft.loading = false;
+          draft.loadingMessage = "";
+        });
+      }
+    },
+    onSupportToggle: (supportId) => {
+      const state = getState();
+      updateState((draft) => {
+        const current = draft.interview.supportState.expandedById[supportId] ?? false;
+        draft.interview.supportState.expandedById[supportId] = !current;
+        const allIds = Object.keys(draft.interview.supportState.expandedById);
+        draft.interview.supportState.expandAll = allIds.length > 0 && allIds.every((id) => draft.interview.supportState.expandedById[id]);
+      });
+      persistSupportState(state.sessionId, getState().interview.supportState);
+    },
+    onExpandAll: () => {
+      const state = getState();
+      updateState((draft) => {
+        Object.keys(draft.interview.supportState.expandedById).forEach((id) => {
+          draft.interview.supportState.expandedById[id] = true;
+        });
+        draft.interview.supportState.expandAll = true;
+      });
+      persistSupportState(state.sessionId, getState().interview.supportState);
+    },
+    onCollapseAll: () => {
+      const state = getState();
+      updateState((draft) => {
+        Object.keys(draft.interview.supportState.expandedById).forEach((id) => {
+          draft.interview.supportState.expandedById[id] = false;
+        });
+        draft.interview.supportState.expandAll = false;
+      });
+      persistSupportState(state.sessionId, getState().interview.supportState);
+    },
   }
 );
-
-const progressComponent = createProgressComponent({
-  label: document.getElementById("progress-label"),
-  bar: document.getElementById("progress-bar"),
-  value: document.getElementById("progress-value"),
-  count: document.getElementById("missing-fields-count"),
-  extractedFields: document.getElementById("extracted-fields"),
-  guardAlerts: document.getElementById("guard-alerts"),
-});
 
 const petitionComponent = createPetitionComponent(
   {
@@ -405,10 +533,33 @@ const reviewComponent = createReviewComponent(
 
 const phaseTitle = document.getElementById("phase-title");
 const draftButton = document.getElementById("draft-btn");
-const draftRoleActions = document.getElementById("draft-role-actions");
-const phase2Panel = document.getElementById("phase2-panel");
-const phase3Panel = document.getElementById("phase3-panel");
 const newSessionButton = document.getElementById("new-session-btn");
+const stepIndicator = document.getElementById("step-indicator");
+const chatPanel = document.querySelector(".chat-panel");
+const composerForm = document.getElementById("message-form");
+
+function updateStepIndicator(state) {
+  if (!stepIndicator) return;
+  const items = stepIndicator.querySelectorAll(".step-item");
+  const phase = state.currentPhase;
+  const step = state.currentStep;
+
+  let activeIdx = 0;
+  if (phase === 1 && (step === "welcome" || step === "classify" || step === "confirm_classification")) {
+    activeIdx = 0;
+  } else if (phase === 1) {
+    activeIdx = 1;
+  } else if (phase === 2) {
+    activeIdx = 2;
+  } else if (phase >= 3) {
+    activeIdx = 3;
+  }
+
+  items.forEach((item, i) => {
+    item.classList.toggle("is-active", i === activeIdx);
+    item.classList.toggle("is-completed", i < activeIdx);
+  });
+}
 
 draftButton.addEventListener("click", () => phase2.startDraft());
 newSessionButton.addEventListener("click", async () => {
@@ -418,31 +569,113 @@ newSessionButton.addEventListener("click", async () => {
   await bootstrapClassifications();
 });
 
+// ── Intake mode selector wiring ─────────────────────────
+const intakeModePanel = document.getElementById("intake-mode-panel");
+const intakeModeChatBtn = document.getElementById("intake-mode-chat");
+const intakeModeFormBtn = document.getElementById("intake-mode-form");
+const optionalEnrichmentPanel = document.getElementById("optional-enrichment-panel");
+const optionalEnrichmentTitle = document.getElementById("optional-enrichment-title");
+const optionalEnrichmentDescription = document.getElementById("optional-enrichment-description");
+const optionalEnrichmentAddBtn = document.getElementById("optional-enrichment-add-btn");
+const optionalEnrichmentSkipBtn = document.getElementById("optional-enrichment-skip-btn");
+
+intakeModeChatBtn?.addEventListener("click", () => phase1.onIntakeModeSelect("conversational"));
+intakeModeFormBtn?.addEventListener("click", () => phase1.onIntakeModeSelect("structured"));
+optionalEnrichmentAddBtn?.addEventListener("click", () => phase1.onOptionalEnrichmentDecision("add"));
+optionalEnrichmentSkipBtn?.addEventListener("click", () => phase1.onOptionalEnrichmentDecision("skip"));
+
 subscribe((state) => {
   llmConfigComponent.render(state);
   chatComponent.render(state);
   classificationComponent.render(state);
   draftRoleComponent.render(state);
-  interviewFormComponent.render(state);
   progressComponent.render(state);
   petitionComponent.render(state);
   reviewComponent.render(state);
+  interviewFormComponent.render(state);
+  updateStepIndicator(state);
 
-  phaseTitle.textContent = resolvePhaseTitle(state);
+  phaseTitle.textContent =
+    state.currentPhase === 1
+      ? "مرحلة التصنيف والاستجواب"
+      : state.currentPhase === 2
+        ? "مرحلة الصياغة"
+        : "مرحلة المراجعة";
 
-  const showDraftRoleActions = state.currentStep === "select_petition_role";
-  draftRoleActions.classList.toggle("hidden", !showDraftRoleActions);
-  if (showDraftRoleActions) {
+  draftButton.disabled = state.currentStep !== "go_to_phase2" && state.currentPhase < 2;
+  if (state.currentStep === "select_petition_role") {
+    phaseTitle.textContent = "مرحلة اختيار صيغة الدعوى";
     draftButton.textContent = state.petition.roleSelection
       ? `بدء الصياغة بصيغة ${resolveDraftRoleLabel(state.petition.roleSelection)}`
       : "اختر نوع الصياغة أولًا";
-    draftButton.disabled = !state.petition.roleSelection || state.loading;
+    draftButton.disabled = !state.petition.roleSelection;
   } else {
     draftButton.textContent = "بدء الصياغة";
-    draftButton.disabled = true;
   }
 
-  phase2Panel.classList.toggle(
+  // ── Intake mode panel visibility ───────────────────
+  const showIntakeMode =
+    state.currentPhase === 1 &&
+    state.currentStep === "select_intake_mode" &&
+    !state.loading;
+  intakeModePanel?.classList.toggle("hidden", !showIntakeMode);
+
+  const showOptionalEnrichment =
+    state.currentPhase === 1 &&
+    state.currentStep === "offer_optional_enrichment" &&
+    state.interview.enrichment.awaitingDecision;
+  optionalEnrichmentPanel?.classList.toggle("hidden", !showOptionalEnrichment);
+  if (optionalEnrichmentTitle) {
+    optionalEnrichmentTitle.textContent = state.interview.enrichment.title || "بيانات إضافية اختيارية";
+  }
+  if (optionalEnrichmentDescription) {
+    optionalEnrichmentDescription.textContent =
+      state.interview.enrichment.description ||
+      "يمكنك إضافة معلومات إضافية لتحسين الصحيفة قبل الصياغة النهائية.";
+  }
+  if (optionalEnrichmentAddBtn) {
+    optionalEnrichmentAddBtn.disabled = state.loading;
+  }
+  if (optionalEnrichmentSkipBtn) {
+    optionalEnrichmentSkipBtn.disabled = state.loading;
+  }
+
+  const isStructuredCompactStage =
+    state.currentPhase === 1 &&
+    state.interview.mode === "structured" &&
+    state.currentStep !== "select_intake_mode";
+  chatPanel?.classList.toggle("is-structured-compact", isStructuredCompactStage);
+
+  // ── Interview form panel visibility (structured mode only) ────
+  const showForm =
+    state.interview.mode === "structured" &&
+    state.interview.form &&
+    state.currentPhase === 1 &&
+    state.currentStep !== "select_intake_mode" &&
+    state.currentStep !== "select_petition_role" &&
+    state.currentStep !== "offer_optional_enrichment";
+  document.getElementById("interview-form-panel")?.classList.toggle("hidden", !showForm);
+  document.getElementById("supports-panel")?.classList.toggle(
+    "hidden",
+    !showForm || !(state.interview.form?.support_items?.length > 0)
+  );
+
+  // ── Messages area (conversational mode or non-form steps) ─────
+  const hideChatForStructuredActionStages =
+    state.interview.mode === "structured" &&
+    state.currentPhase === 1 &&
+    (state.currentStep === "select_petition_role" ||
+      state.currentStep === "offer_optional_enrichment");
+  const showMessages =
+    (!hideChatForStructuredActionStages &&
+      (state.interview.mode !== "structured" ||
+    !state.interview.form ||
+    state.currentStep === "select_intake_mode" ||
+    state.currentPhase >= 2));
+  document.getElementById("messages")?.classList.toggle("hidden", !showMessages && state.currentPhase < 2);
+  composerForm?.classList.toggle("hidden", hideChatForStructuredActionStages && state.currentPhase < 2);
+
+  document.getElementById("phase2-panel").classList.toggle(
     "hidden",
     state.currentPhase < 2 &&
       !state.petition.facts &&
@@ -450,12 +683,16 @@ subscribe((state) => {
       !state.petition.requests &&
       !state.petition.isGenerating
   );
-  phase3Panel.classList.toggle("hidden", !state.review.isReady && state.currentPhase < 3);
+  document.getElementById("phase3-panel").classList.toggle(
+    "hidden",
+    !state.review.isReady && state.currentPhase < 3
+  );
 });
 
 seedWelcomeMessage();
 
-async function applyLLMConfig(llmConfig) {
+async function initializeLLMConfig() {
+  const llmConfig = normalizeLLMConfig(await configAPI.getLLMConfig().catch(() => FALLBACK_LLM_CONFIG));
   const storedSelection = readStoredLLMSelection();
   const preferredProvider = findPreferredProvider(
     llmConfig.providers,
@@ -464,12 +701,13 @@ async function applyLLMConfig(llmConfig) {
   const selectedProvider = preferredProvider?.id || llmConfig.current_provider;
   const selectedModel = resolveModel(
     preferredProvider,
-    storedSelection?.provider === selectedProvider ? storedSelection.model : llmConfig.current_model
+    storedSelection?.provider === selectedProvider ? storedSelection.model : ""
   );
   const hasSavedSelection = Boolean(
     storedSelection &&
       storedSelection.provider === selectedProvider &&
-      storedSelection.model === selectedModel
+      storedSelection.model &&
+      selectedModel
   );
 
   updateState((draft) => {
@@ -490,13 +728,22 @@ async function applyLLMConfig(llmConfig) {
   }
 }
 
-async function initializeLLMConfig() {
-  try {
-    const llmConfig = normalizeLLMConfig(await configAPI.getLLMConfig());
-    await applyLLMConfig(llmConfig);
-  } catch {
-    await applyLLMConfig(normalizeLLMConfig(FALLBACK_LLM_CONFIG));
-  }
-}
-
-initializeLLMConfig();
+initializeLLMConfig().catch(() => {
+  const fallbackConfig = normalizeLLMConfig(FALLBACK_LLM_CONFIG);
+  updateState((draft) => {
+    draft.llm.ready = true;
+    draft.llm.providers = fallbackConfig.providers;
+    draft.llm.hasSavedSelection = true;
+    draft.llm.chooserOpen = false;
+    draft.llm.canDismissChooser = true;
+    draft.llm.selectedProvider = fallbackConfig.current_provider;
+    draft.llm.selectedModel = fallbackConfig.current_model;
+    draft.llm.draftProvider = fallbackConfig.current_provider;
+    draft.llm.draftModel = fallbackConfig.current_model;
+  });
+  persistLLMSelection({
+    provider: fallbackConfig.current_provider,
+    model: fallbackConfig.current_model,
+  });
+  return bootstrapClassifications();
+});

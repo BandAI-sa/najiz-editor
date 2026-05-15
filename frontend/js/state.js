@@ -24,9 +24,9 @@ const initialState = () => ({
     cases: [],
     suggestions: [],
     selectedPath: "",
-    warning: null,
   },
   interview: {
+    mode: "conversational",
     extractedData: {},
     completion: 0,
     missingFields: [],
@@ -36,6 +36,14 @@ const initialState = () => ({
     formErrors: {},
     submitState: "idle",
     submitMessage: "",
+    enrichment: {
+      awaitingDecision: false,
+      mode: "none",
+      title: "",
+      description: "",
+      helperText: "",
+      canSkip: true,
+    },
     supportState: {
       expandAll: false,
       expandedById: {},

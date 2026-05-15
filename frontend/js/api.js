@@ -90,6 +90,16 @@ export const sessionsAPI = {
       method: "PATCH",
       body: JSON.stringify({ values }),
     }),
+  updateIntakeMode: (id, mode) =>
+    apiCall(`/sessions/${id}/intake-mode`, {
+      method: "PATCH",
+      body: JSON.stringify({ mode }),
+    }),
+  decideOptionalEnrichment: (id, action) =>
+    apiCall(`/sessions/${id}/optional-enrichment`, {
+      method: "PATCH",
+      body: JSON.stringify({ action }),
+    }),
 };
 
 export const agentAPI = {

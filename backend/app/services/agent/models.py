@@ -4,7 +4,11 @@ from typing import Any
 
 from pydantic import Field
 
-from app.models.classification import CaseSuggestion, ClassificationSelection, InterviewForm
+from app.models.classification import (
+    CaseSuggestion,
+    ClassificationSelection,
+    InterviewForm,
+)
 from app.models.common import BaseSchema, GuardIssue, InlineNotice
 from app.models.petition import PetitionDraft, ReviewReport
 

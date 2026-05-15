@@ -330,6 +330,12 @@ class Phase2DrafterService:
             البيانات المستخرجة من المستخدم:
             {self._format_extracted_data(session.extracted_data)}
 
+            خريطة الحقول المنظمة (لمنع التبديل بين القيم):
+            {self._format_structured_field_map(session.extracted_data, petition_role)}
+
+            بيانات إثرائية إضافية (إن وجدت):
+            {self._format_structured_supplementary_context(session.extracted_data)}
+
             الحقول النظامية/العملية المهمة غير المكتملة:
             {self._format_missing_fields(session.flags.missing_fields)}
 
@@ -383,7 +389,19 @@ class Phase2DrafterService:
         evidence_text: str,
         petition_role: str,
     ) -> str:
-        amount = self._extract_first_value(session.extracted_data, ("مبلغ", "قيمة", "تعويض", "نفقة"))
+        amount = self._extract_first_value(
+            session.extracted_data,
+            (
+                "تقدير المطالبة",
+                "مبلغ المطالبة",
+                "المبلغ المستحق",
+                "مبلغ",
+                "قيمة",
+                "تعويض",
+                "نفقة",
+                "أتعاب",
+            ),
+        )
         primary_request = self._infer_primary_request(session.classification.case_title, amount, petition_role)
         support_line = self._infer_support_line(case_context)
 
@@ -421,6 +439,78 @@ class Phase2DrafterService:
         return "\n".join(f"- {field}: {value}" for field, value in extracted_data.items())
 
     @staticmethod
+    def _format_structured_supplementary_context(
+        extracted_data: dict,
+    ) -> str:
+        supplementary_labels = (
+            "بيانات الوكيل",
+            "رقم الوكالة",
+            "رقم الهوية",
+            "العنوان الوطني",
+            "البريد الإلكتروني",
+            "الجوال",
+            "تقدير المطالبة",
+            "بيانات إضافية للأطراف",
+        )
+        lines: list[str] = []
+        for label in supplementary_labels:
+            value = str(extracted_data.get(label, "")).strip()
+            if value:
+                lines.append(f"- {label}: {value}")
+        if not lines:
+            return "- لا توجد بيانات إثرائية إضافية مسجلة."
+        return "\n".join(lines)
+
+    @classmethod
+    def _format_structured_field_map(
+        cls,
+        extracted_data: dict,
+        petition_role: str,
+    ) -> str:
+        def pick(tokens: tuple[str, ...]) -> str:
+            values = cls._collect_values_by_tokens(
+                extracted_data, tokens,
+            )
+            return " | ".join(values) if values else "[يحتاج استكمال]"
+
+        plaintiff_tokens = (
+            "مدعي", "طالب", "الطرف الأول", "الطرف الاول",
+        )
+        defendant_tokens = (
+            "مدعى", "مدعي عليه", "الطرف الثاني", "الطرف الثانى",
+        )
+        representative_tokens = (
+            "وكيل", "وكالة", "تفويض", "نيابة", "ولاية",
+        )
+        lines = [
+            f"- بيانات المدعي: {pick(plaintiff_tokens)}",
+            f"- بيانات المدعى عليه: {pick(defendant_tokens)}",
+            f"- الهوية/السجل: {pick(('هوية', 'إقامة', 'اقامة', 'سجل', 'سجل تجاري', 'رقم الهوية'))}",
+            f"- العنوان: {pick(('عنوان', 'العنوان الوطني', 'مقر'))}",
+            f"- التواصل (هاتف/جوال/بريد): {pick(('جوال', 'هاتف', 'اتصال', 'بريد', 'email'))}",
+            f"- بيانات الوكالة: {pick(representative_tokens) if petition_role == 'agent' else 'غير مطبق في صيغة أصيل'}",
+            f"- التقدير المالي/المطالبة: {pick(('تقدير المطالبة', 'مبلغ', 'قيمة', 'تعويض', 'نفقة', 'أتعاب'))}",
+            f"- بيانات إضافية للأطراف: {pick(('بيانات إضافية للأطراف', 'بيانات الأطراف', 'أطراف'))}",
+            f"- التواريخ: {pick(('تاريخ', 'موعد', 'زمن'))}",
+            f"- الوقائع/الوصف: {pick(('وقائع', 'وصف', 'تفاصيل', 'بيان'))}",
+        ]
+        return "\n".join(lines)
+
+    @staticmethod
+    def _collect_values_by_tokens(
+        extracted_data: dict,
+        tokens: tuple[str, ...],
+    ) -> list[str]:
+        entries: list[str] = []
+        for field, value in extracted_data.items():
+            normalized = str(value).strip()
+            if not normalized:
+                continue
+            if any(token in field for token in tokens):
+                entries.append(f"{field}: {normalized}")
+        return entries
+
+    @staticmethod
     def _format_missing_fields(fields: list[str]) -> str:
         if not fields:
             return "- لا توجد حقول مطلوبة متبقية في هذه المرحلة."
@@ -451,9 +541,111 @@ class Phase2DrafterService:
 
     @staticmethod
     def _extract_party_lines(extracted_data: dict, petition_role: str) -> str:
-        plaintiff = [f"{field}: {value}" for field, value in extracted_data.items() if "مدعي" in field or "طالب" in field]
-        defendant = [f"{field}: {value}" for field, value in extracted_data.items() if "مدعى" in field or "مدعي عليه" in field]
-        representative = [f"{field}: {value}" for field, value in extracted_data.items() if "وكيل" in field or "ولاية" in field or "صفة" in field]
+        non_empty_items = [
+            (field, str(value).strip())
+            for field, value in extracted_data.items()
+            if str(value).strip()
+        ]
+        plaintiff = [
+            f"{field}: {value}"
+            for field, value in non_empty_items
+            if any(
+                token in field
+                for token in (
+                    "مدعي", "الطرف الأول", "الطرف الاول",
+                )
+            )
+        ]
+        for label in ("رقم الهوية", "رقم الوكالة"):
+            value = next(
+                (item_value for field, item_value in non_empty_items if field.strip() == label),
+                None,
+            )
+            if not value:
+                value = next(
+                    (
+                        item_value
+                        for field, item_value in non_empty_items
+                        if label in field and "المدعى" not in field
+                    ),
+                    None,
+                )
+            if value and not any(line.startswith(f"{label}:") for line in plaintiff):
+                plaintiff.append(f"{label}: {value}")
+        defendant = [
+            f"{field}: {value}"
+            for field, value in non_empty_items
+            if any(
+                token in field
+                for token in (
+                    "مدعى", "مدعي عليه", "الطرف الثاني", "الطرف الثانى",
+                )
+            )
+        ]
+        representative = [
+            f"{field}: {value}"
+            for field, value in non_empty_items
+            if any(
+                token in field
+                for token in (
+                    "وكيل", "وكالة", "ولاية", "صفة", "تفويض", "نيابة",
+                )
+            )
+        ]
+        extra_identity_contact = [
+            f"{field}: {value}"
+            for field, value in non_empty_items
+            if any(
+                token in field
+                for token in (
+                    "هوية", "إقامة", "اقامة", "سجل", "عنوان",
+                    "جوال", "هاتف", "بريد", "email",
+                )
+            )
+            and not any(
+                token in field
+                for token in ("مدعي", "مدعى", "وكيل", "وكالة", "ولاية", "صفة")
+            )
+        ]
+        has_identity = any(
+            any(
+                token in field
+                for token in (
+                    "هوية", "إقامة", "اقامة", "سجل", "رقم الهوية",
+                )
+            )
+            for field, _ in non_empty_items
+        )
+        has_address = any(
+            any(token in field for token in ("عنوان", "مقر"))
+            for field, _ in non_empty_items
+        )
+        has_representative_name = any(
+            "وكيل" in field
+            for field, _ in non_empty_items
+        )
+        has_agency_number = any(
+            "وكالة" in field
+            for field, _ in non_empty_items
+        )
+        plaintiff_missing: list[str] = ["الاسم الكامل"]
+        if not has_identity:
+            plaintiff_missing.append("الهوية/السجل")
+        if not has_address:
+            plaintiff_missing.append("العنوان الوطني/عنوان التبليغ")
+        if not any("صفة" in field for field, _ in non_empty_items):
+            plaintiff_missing.append("الصفة")
+        plaintiff_fallback = (
+            "- [يحتاج استكمال] "
+            + "، ".join(plaintiff_missing)
+            + "."
+        )
+        defendant_fallback = (
+            "- [يحتاج استكمال] الاسم الكامل/السجل، "
+            "وبيانات المدعى عليه التعريفية."
+            if has_identity or has_address
+            else "- [يحتاج استكمال] الاسم الكامل/السجل، الهوية أو السجل، العنوان."
+        )
 
         lines = [
             (
@@ -462,17 +654,40 @@ class Phase2DrafterService:
                 else "- صفة التقديم: وكيل عن المدعي، ويجب أن تُصاغ الصحيفة بصيغة تمثيل محايدة دون ذكر مهنة الكاتب."
             ),
             "بيانات المدعي:",
-            *([f"- {item}" for item in plaintiff] or ["- [يحتاج استكمال] الاسم الكامل، الهوية، العنوان الوطني، الصفة."]),
+            *([f"- {item}" for item in plaintiff] or [plaintiff_fallback]),
             "بيانات المدعى عليه:",
-            *([f"- {item}" for item in defendant] or ["- [يحتاج استكمال] الاسم الكامل/السجل، الهوية أو السجل، العنوان."]),
+            *([f"- {item}" for item in defendant] or [defendant_fallback]),
         ]
+        if extra_identity_contact:
+            lines.extend(
+                [
+                    "بيانات تعريف/تواصل إضافية من الإدخال:",
+                    *[f"- {item}" for item in extra_identity_contact],
+                ]
+            )
         if representative:
             lines.extend(["بيانات الممثل النظامي أو الوكيل:", *[f"- {item}" for item in representative]])
         elif petition_role == "agent":
+            representative_missing = [
+                "اسم الوكيل وصفته"
+                if not has_representative_name
+                else None,
+                "رقم الوكالة وتاريخها وجهة إصدارها"
+                if not has_agency_number
+                else None,
+                "نص صلاحية المرافعة",
+            ]
+            representative_missing = [
+                item
+                for item in representative_missing
+                if item
+            ]
             lines.extend(
                 [
                     "بيانات الوكيل:",
-                    "- [يحتاج استكمال] اسم الوكيل، رقم الوكالة، تاريخها، جهة إصدارها، ونص صلاحية المرافعة.",
+                    "- [يحتاج استكمال] "
+                    + "، ".join(representative_missing)
+                    + ".",
                 ]
             )
         return "\n".join(lines)
@@ -482,8 +697,21 @@ class Phase2DrafterService:
         if not extracted_data:
             return "1. [يحتاج استكمال] لا توجد وقائع مفصلة كافية بعد لعرض التسلسل الزمني."
 
-        ordered_dates = [(field, value) for field, value in extracted_data.items() if "تاريخ" in field]
-        other_items = [(field, value) for field, value in extracted_data.items() if "تاريخ" not in field]
+        non_empty_items = [
+            (field, str(value).strip())
+            for field, value in extracted_data.items()
+            if str(value).strip()
+        ]
+        ordered_dates = [
+            (field, value)
+            for field, value in non_empty_items
+            if "تاريخ" in field
+        ]
+        other_items = [
+            (field, value)
+            for field, value in non_empty_items
+            if "تاريخ" not in field
+        ]
 
         lines: list[str] = []
         counter = 1
@@ -502,8 +730,18 @@ class Phase2DrafterService:
     def _infer_document_lines(extracted_data: dict, case_context: ClassificationNode | None) -> str:
         lines: list[str] = []
         for field, value in extracted_data.items():
-            if any(token in field for token in ("مستند", "مرفق", "عقد", "فاتورة", "حوالة", "رسالة", "إيصال", "صك", "كشف", "تقرير")):
-                lines.append(f"- {field}: {value}")
+            normalized = str(value).strip()
+            if not normalized:
+                continue
+            if any(
+                token in field
+                for token in (
+                    "مستند", "مرفق", "عقد", "فاتورة", "حوالة",
+                    "رسالة", "رسائل", "إيصال", "صك", "كشف",
+                    "تقرير", "محضر", "بوليصة", "سند",
+                )
+            ):
+                lines.append(f"- {field}: {normalized}")
 
         if case_context and case_context.requirements:
             for item in case_context.requirements.attachments:
@@ -516,9 +754,19 @@ class Phase2DrafterService:
 
     @staticmethod
     def _extract_first_value(extracted_data: dict, keys: tuple[str, ...]) -> str | None:
-        for field, value in extracted_data.items():
-            if any(token in field for token in keys):
-                return str(value)
+        non_empty_items = [
+            (field, str(value).strip())
+            for field, value in extracted_data.items()
+            if str(value).strip()
+        ]
+        for token in keys:
+            for field, value in non_empty_items:
+                if field.strip() == token:
+                    return value
+        for token in keys:
+            for field, value in non_empty_items:
+                if token in field:
+                    return value
         return None
 
     @staticmethod
