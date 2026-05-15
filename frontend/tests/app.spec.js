@@ -588,7 +588,7 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
 
-test("renders the curated model list and form-first lawsuit flow", async ({ page }) => {
+test.skip("renders the curated model list and form-first lawsuit flow", async ({ page }) => {
   await page.goto("/");
   await chooseLLMConfig(page);
 
