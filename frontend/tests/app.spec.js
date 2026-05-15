@@ -320,7 +320,7 @@ function mockApi(page, formFixture = interviewForm) {
           contentType: "application/json",
           body: JSON.stringify({
             session_id: "session-1",
-            reply: "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول ط�[...]
+            reply: "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول الطلب.",
             phase: 1,
             session_status: "NEW",
             completion_percentage: 0,
