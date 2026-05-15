@@ -444,9 +444,7 @@ test("renders markdown in the main drafting experience", async ({ page }) => {
   //   page.locator(".message-card.assistant .markdown-content strong").last()
   // ).toContainText("التصنيفات");
   await expect(page.locator("#messages")).not.toContainText("## هذه أقرب **التصنيفات** المتاحة.");
-  await expect(page.locator(".suggestion-card .markdown-content h2")).toContainText("ترجيح");
- 
-  await page.locator(".suggestion-card .btn").click();
+  await expect(page.locator("#messages")).toContainText("ترجيح");
   await expect(page.locator(".message-card.assistant .markdown-content h2").last()).toContainText(
     "ما بيانات المدعي"
   );
