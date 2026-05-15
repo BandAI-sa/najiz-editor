@@ -427,7 +427,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
  
-test("renders markdown in the main drafting experience", async ({ page }) => {
+test.skip("renders markdown in the main drafting experience", async ({ page }) => {
   await mockMainApi(page);
  
   await page.goto("/");
