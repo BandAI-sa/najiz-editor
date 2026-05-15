@@ -36,6 +36,14 @@ const initialState = () => ({
     formErrors: {},
     submitState: "idle",
     submitMessage: "",
+    enrichment: {
+      awaitingDecision: false,
+      mode: "none",
+      title: "",
+      description: "",
+      helperText: "",
+      canSkip: true,
+    },
     supportState: {
       expandAll: false,
       expandedById: {},

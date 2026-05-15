@@ -8,7 +8,7 @@ function buildMessageCard(message) {
   meta.className = "message-meta";
 
   const role = document.createElement("strong");
-  role.textContent = message.role === "user" ? "أنت" : "الوكيل";
+  role.textContent = message.role === "user" ? "أنت" : "المساعد القانوني";
 
   const time = document.createElement("span");
   time.textContent = new Date(message.timestamp).toLocaleTimeString("ar-SA", {
@@ -39,7 +39,7 @@ function buildPendingCard(message) {
   meta.className = "message-meta";
 
   const role = document.createElement("strong");
-  role.textContent = "الوكيل";
+  role.textContent = "المساعد القانوني";
 
   const status = document.createElement("span");
   status.textContent = "قيد المعالجة";
@@ -91,7 +91,7 @@ export function createChatComponent({ container, form, input, submitButton, onSu
       form.setAttribute("aria-busy", state.loading ? "true" : "false");
       input.disabled = disabled;
       input.placeholder = awaitingDraftRole
-        ? "اختر أصيل أو وكيل للمتابعة إلى الصياغة."
+        ? "اختر الصيغة (أصيل أو وكيل) للمتابعة إلى الصياغة."
         : defaultPlaceholder;
       if (submitButton) {
         submitButton.disabled = disabled;

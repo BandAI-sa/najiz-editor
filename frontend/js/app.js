@@ -8,6 +8,7 @@ import { createPetitionComponent } from "./components/petition.js";
 import { createProgressComponent } from "./components/progress.js";
 import { createReviewComponent } from "./components/review.js";
 import {
+  applyResponse,
   buildFormValues,
   computeCompletion,
   computeMissingFields,
@@ -226,7 +227,7 @@ function seedWelcomeMessage() {
 
     draft.chat.push({
       role: "assistant",
-      content: "مرحبًا. صف لي وقائع الدعوى أو اختر التصنيف يدويًا لنبدأ.",
+      content: "مرحبًا بك. صف الوقائع الأساسية للدعوى، أو اختر التصنيف يدويًا لنبدأ.",
       timestamp: new Date().toISOString(),
     });
   });
@@ -361,12 +362,18 @@ const draftRoleComponent = createDraftRoleComponent(
     hint: document.getElementById("draft-role-hint"),
   },
   {
-    onSelect: (role) =>
+    onSelect: async (role) => {
       updateState((draft) => {
         draft.petition.roleSelection = role;
         draft.petition.saveState = "idle";
         draft.petition.saveMessage = "";
-      }),
+      });
+
+      // Keep card-click flow authoritative: role selection should advance immediately.
+      if (getState().currentStep === "select_petition_role") {
+        await phase2.startDraft();
+      }
+    },
   }
 );
 
@@ -423,49 +430,26 @@ const interviewFormComponent = createInterviewFormComponent(
         updateState((draft) => {
           draft.interview.formErrors = errors;
           draft.interview.submitState = "error";
-          draft.interview.submitMessage = "لا يمكن المتابعة قبل استكمال جميع الحقول الإلزامية الظاهرة في النموذج.";
+          draft.interview.submitMessage =
+            form.variant === "supplementary_optional"
+              ? "يرجى مراجعة الحقول التي تحتوي تنبيهًا، أو اترك الحقول الاختيارية فارغة ثم تابع."
+              : "لا تزال هناك بيانات أساسية غير مكتملة. يرجى استكمالها للمتابعة.";
         });
         return;
       }
 
       updateState((draft) => {
         draft.loading = true;
-        draft.loadingMessage = "جاري حفظ البيانات...";
+        draft.loadingMessage =
+          form.variant === "supplementary_optional"
+            ? "جاري حفظ البيانات الإضافية..."
+            : "جاري حفظ البيانات الأساسية...";
         draft.interview.submitState = "loading";
       });
 
       try {
         const response = await sessionsAPI.submitInterviewForm(state.sessionId, state.interview.formValues);
-        updateState((draft) => {
-          draft.sessionId = response.session_id;
-          draft.interview.extractedData = response.extracted_data || {};
-          draft.interview.completion = response.completion_percentage ?? 100;
-          draft.interview.missingFields = response.flags?.missing_fields || [];
-          draft.interview.formErrors = response.metadata?.form_errors || {};
-
-          if (response.interview_form) {
-            draft.interview.form = response.interview_form;
-            draft.interview.formValues = buildFormValues(
-              response.interview_form,
-              response.extracted_data || {},
-              draft.interview.formValues
-            );
-          }
-
-          if (response.next_action === "go_to_phase2") {
-            draft.currentStep = "select_petition_role";
-            draft.interview.submitState = "success";
-            draft.interview.submitMessage = response.reply;
-            draft.petition.roleSelection = "";
-          } else {
-            draft.interview.submitState = Object.keys(draft.interview.formErrors).length > 0 ? "error" : "idle";
-            draft.interview.submitMessage = response.inline_notice?.message || response.reply;
-          }
-
-          draft.flags.needsHumanReview = response.flags?.needs_human_review || false;
-          draft.flags.criticalIssues = response.flags?.critical_issues || [];
-          draft.flags.guardIssues = response.flags?.guard_issues || [];
-        });
+        applyResponse(response);
       } catch (error) {
         updateState((draft) => {
           draft.interview.submitState = "error";
@@ -550,6 +534,32 @@ const reviewComponent = createReviewComponent(
 const phaseTitle = document.getElementById("phase-title");
 const draftButton = document.getElementById("draft-btn");
 const newSessionButton = document.getElementById("new-session-btn");
+const stepIndicator = document.getElementById("step-indicator");
+const chatPanel = document.querySelector(".chat-panel");
+const composerForm = document.getElementById("message-form");
+
+function updateStepIndicator(state) {
+  if (!stepIndicator) return;
+  const items = stepIndicator.querySelectorAll(".step-item");
+  const phase = state.currentPhase;
+  const step = state.currentStep;
+
+  let activeIdx = 0;
+  if (phase === 1 && (step === "welcome" || step === "classify" || step === "confirm_classification")) {
+    activeIdx = 0;
+  } else if (phase === 1) {
+    activeIdx = 1;
+  } else if (phase === 2) {
+    activeIdx = 2;
+  } else if (phase >= 3) {
+    activeIdx = 3;
+  }
+
+  items.forEach((item, i) => {
+    item.classList.toggle("is-active", i === activeIdx);
+    item.classList.toggle("is-completed", i < activeIdx);
+  });
+}
 
 draftButton.addEventListener("click", () => phase2.startDraft());
 newSessionButton.addEventListener("click", async () => {
@@ -563,9 +573,16 @@ newSessionButton.addEventListener("click", async () => {
 const intakeModePanel = document.getElementById("intake-mode-panel");
 const intakeModeChatBtn = document.getElementById("intake-mode-chat");
 const intakeModeFormBtn = document.getElementById("intake-mode-form");
+const optionalEnrichmentPanel = document.getElementById("optional-enrichment-panel");
+const optionalEnrichmentTitle = document.getElementById("optional-enrichment-title");
+const optionalEnrichmentDescription = document.getElementById("optional-enrichment-description");
+const optionalEnrichmentAddBtn = document.getElementById("optional-enrichment-add-btn");
+const optionalEnrichmentSkipBtn = document.getElementById("optional-enrichment-skip-btn");
 
 intakeModeChatBtn?.addEventListener("click", () => phase1.onIntakeModeSelect("conversational"));
 intakeModeFormBtn?.addEventListener("click", () => phase1.onIntakeModeSelect("structured"));
+optionalEnrichmentAddBtn?.addEventListener("click", () => phase1.onOptionalEnrichmentDecision("add"));
+optionalEnrichmentSkipBtn?.addEventListener("click", () => phase1.onOptionalEnrichmentDecision("skip"));
 
 subscribe((state) => {
   llmConfigComponent.render(state);
@@ -576,6 +593,7 @@ subscribe((state) => {
   petitionComponent.render(state);
   reviewComponent.render(state);
   interviewFormComponent.render(state);
+  updateStepIndicator(state);
 
   phaseTitle.textContent =
     state.currentPhase === 1
@@ -602,13 +620,40 @@ subscribe((state) => {
     !state.loading;
   intakeModePanel?.classList.toggle("hidden", !showIntakeMode);
 
+  const showOptionalEnrichment =
+    state.currentPhase === 1 &&
+    state.currentStep === "offer_optional_enrichment" &&
+    state.interview.enrichment.awaitingDecision;
+  optionalEnrichmentPanel?.classList.toggle("hidden", !showOptionalEnrichment);
+  if (optionalEnrichmentTitle) {
+    optionalEnrichmentTitle.textContent = state.interview.enrichment.title || "بيانات إضافية اختيارية";
+  }
+  if (optionalEnrichmentDescription) {
+    optionalEnrichmentDescription.textContent =
+      state.interview.enrichment.description ||
+      "يمكنك إضافة معلومات إضافية لتحسين الصحيفة قبل الصياغة النهائية.";
+  }
+  if (optionalEnrichmentAddBtn) {
+    optionalEnrichmentAddBtn.disabled = state.loading;
+  }
+  if (optionalEnrichmentSkipBtn) {
+    optionalEnrichmentSkipBtn.disabled = state.loading;
+  }
+
+  const isStructuredCompactStage =
+    state.currentPhase === 1 &&
+    state.interview.mode === "structured" &&
+    state.currentStep !== "select_intake_mode";
+  chatPanel?.classList.toggle("is-structured-compact", isStructuredCompactStage);
+
   // ── Interview form panel visibility (structured mode only) ────
   const showForm =
     state.interview.mode === "structured" &&
     state.interview.form &&
     state.currentPhase === 1 &&
     state.currentStep !== "select_intake_mode" &&
-    state.currentStep !== "select_petition_role";
+    state.currentStep !== "select_petition_role" &&
+    state.currentStep !== "offer_optional_enrichment";
   document.getElementById("interview-form-panel")?.classList.toggle("hidden", !showForm);
   document.getElementById("supports-panel")?.classList.toggle(
     "hidden",
@@ -616,12 +661,19 @@ subscribe((state) => {
   );
 
   // ── Messages area (conversational mode or non-form steps) ─────
+  const hideChatForStructuredActionStages =
+    state.interview.mode === "structured" &&
+    state.currentPhase === 1 &&
+    (state.currentStep === "select_petition_role" ||
+      state.currentStep === "offer_optional_enrichment");
   const showMessages =
-    state.interview.mode !== "structured" ||
+    (!hideChatForStructuredActionStages &&
+      (state.interview.mode !== "structured" ||
     !state.interview.form ||
     state.currentStep === "select_intake_mode" ||
-    state.currentPhase >= 2;
+    state.currentPhase >= 2));
   document.getElementById("messages")?.classList.toggle("hidden", !showMessages && state.currentPhase < 2);
+  composerForm?.classList.toggle("hidden", hideChatForStructuredActionStages && state.currentPhase < 2);
 
   document.getElementById("phase2-panel").classList.toggle(
     "hidden",

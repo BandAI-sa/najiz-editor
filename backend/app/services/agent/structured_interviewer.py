@@ -23,6 +23,93 @@ from app.repositories.classification_repository import (
 from app.services.agent.models import AgentTurnResult
 
 
+SUPPLEMENTARY_OPTIONAL_FIELDS: tuple[dict[str, str], ...] = (
+    {
+        "label": "بيانات الوكيل",
+        "key": "supp_01",
+        "group_id": "agent_info",
+        "group_label": "بيانات الوكيل",
+        "hint": "اختياري: أضف صفة الوكيل وبياناته كما تفضّل.",
+        "placeholder": "اكتب بيانات الوكيل (اختياري)",
+        "input_type": "textarea",
+    },
+    {
+        "label": "رقم الوكالة",
+        "key": "supp_02",
+        "group_id": "agent_info",
+        "group_label": "بيانات الوكيل",
+        "hint": "اختياري: رقم الوكالة وتاريخها وجهة إصدارها.",
+        "placeholder": "أدخل رقم الوكالة (اختياري)",
+        "input_type": "text",
+    },
+    {
+        "label": "البريد الإلكتروني",
+        "key": "supp_03",
+        "group_id": "contact",
+        "group_label": "وسائل التواصل",
+        "hint": "اختياري: يفضّل بريدًا نشطًا للتواصل.",
+        "placeholder": "name@example.com",
+        "input_type": "text",
+    },
+    {
+        "label": "الجوال",
+        "key": "supp_04",
+        "group_id": "contact",
+        "group_label": "وسائل التواصل",
+        "hint": "اختياري: رقم جوال للتواصل عند الحاجة.",
+        "placeholder": "05XXXXXXXX",
+        "input_type": "text",
+    },
+    {
+        "label": "العنوان الوطني",
+        "key": "supp_05",
+        "group_id": "national_address",
+        "group_label": "العنوان الوطني",
+        "hint": "اختياري: العنوان الوطني أو عنوان التبليغ.",
+        "placeholder": "اكتب العنوان الوطني (اختياري)",
+        "input_type": "textarea",
+    },
+    {
+        "label": "رقم الهوية",
+        "key": "supp_06",
+        "group_id": "party_extra",
+        "group_label": "معلومات إضافية عن الأطراف",
+        "hint": "اختياري: أضف الرقم إذا كان متاحًا لديك.",
+        "placeholder": "أدخل رقم الهوية (اختياري)",
+        "input_type": "text",
+    },
+    {
+        "label": "بيانات إضافية للأطراف",
+        "key": "supp_07",
+        "group_id": "party_extra",
+        "group_label": "معلومات إضافية عن الأطراف",
+        "hint": "اختياري: أي تفاصيل داعمة عن الأطراف.",
+        "placeholder": "اكتب أي بيانات إضافية (اختياري)",
+        "input_type": "textarea",
+    },
+    {
+        "label": "تقدير المطالبة",
+        "key": "supp_08",
+        "group_id": "claim_finance",
+        "group_label": "تفاصيل المطالبة المالية",
+        "hint": "اختياري: تقدير مبدئي للمطالبة المالية إن توفر.",
+        "placeholder": "أدخل قيمة تقديرية (اختياري)",
+        "input_type": "number",
+    },
+)
+
+GENERATED_LATER_FIELDS: tuple[str, ...] = (
+    "بيانات الوكيل",
+    "رقم الوكالة",
+    "العنوان الوطني",
+    "رقم الهوية",
+    "البريد الإلكتروني",
+    "الجوال",
+    "تقدير المطالبة",
+    "بيانات إضافية للأطراف",
+)
+
+
 class StructuredInterviewerService:
     """Generates dynamic structured forms from CaseRequirements
     and validates form submissions.
@@ -67,22 +154,13 @@ class StructuredInterviewerService:
         )
 
         if session.completion_percentage == 100:
-            session.status = SessionStatus.READY_TO_DRAFT
-            session.phase = Phase.TWO
-            return AgentTurnResult(
-                reply=(
-                    "البيانات الأساسية مكتملة. يمكنك الآن "
-                    "طلب صياغة الصحيفة."
-                ),
-                next_action="go_to_phase2",
-                interview_form=form,
-            )
+            return self._build_enrichment_offer_result(session)
 
         return AgentTurnResult(
             reply=(
-                "تم اعتماد نوع الدعوى. يرجى استكمال "
-                "نموذج البيانات الإلزامية قبل الانتقال "
-                "إلى الصياغة."
+                "تم اعتماد نوع الدعوى بنجاح. "
+                "أكمل البيانات الأساسية في النموذج، ثم "
+                "يمكنك المتابعة للصياغة مباشرة."
             ),
             next_action="fill_form",
             interview_form=form,
@@ -120,9 +198,9 @@ class StructuredInterviewerService:
             icon="⚠️",
             title="تم نقل جمع البيانات إلى النموذج",
             message=(
-                "تم نقل الأسئلة الإلزامية إلى نموذج "
-                "منظم. يرجى استكمال الحقول المطلوبة في "
-                "النموذج للمتابعة."
+                "لضمان الدقة، يتم استكمال البيانات الأساسية "
+                "من خلال النموذج المنظّم. يمكنك تعبئة الحقول "
+                "المطلوبة ثم المتابعة."
             ),
             aria_label=(
                 "تنبيه: استخدم نموذج البيانات بدلاً من "
@@ -173,6 +251,11 @@ class StructuredInterviewerService:
             session.interview_form
             or self._build_interview_form(case),
         )
+        is_supplementary_form = (
+            form.variant == "supplementary_optional"
+            or session.metadata.get("supplementary_state")
+            == "collecting"
+        )
         normalized_values = self._normalize_form_values(
             form, values,
         )
@@ -184,14 +267,21 @@ class StructuredInterviewerService:
             notice = InlineNotice(
                 tone="warning",
                 icon="⚠️",
-                title="أكمل الحقول الإلزامية",
+                title=(
+                    "تحقّق من البيانات المدخلة"
+                    if is_supplementary_form
+                    else "يلزم استكمال الحقول الأساسية"
+                ),
                 message=(
-                    "لا يمكن المتابعة قبل استكمال جميع "
-                    "الحقول الإلزامية الظاهرة في النموذج."
+                    "يرجى مراجعة الحقول الأساسية غير المكتملة "
+                    "للمتابعة."
+                    if not is_supplementary_form
+                    else "يمكنك تعديل الحقول التي تحتوي تنبيهًا، "
+                    "أو ترك البيانات الاختيارية فارغة ثم المتابعة."
                 ),
                 aria_label=(
-                    "تنبيه: توجد حقول إلزامية ناقصة في "
-                    "نموذج الدعوى."
+                    "تنبيه: توجد بيانات بحاجة للمراجعة في "
+                    "النموذج."
                 ),
             )
             session.status = SessionStatus.INTERVIEW
@@ -210,7 +300,11 @@ class StructuredInterviewerService:
             )
             return AgentTurnResult(
                 reply=notice.message,
-                next_action="fill_form",
+                next_action=(
+                    "fill_supplementary_form"
+                    if is_supplementary_form
+                    else "fill_form"
+                ),
                 metadata={"form_errors": form_errors},
                 interview_form=form,
                 inline_notice=notice,
@@ -226,23 +320,162 @@ class StructuredInterviewerService:
         session.extracted_field_names = sorted(
             session.extracted_data.keys(),
         )
-        session.flags.missing_fields = []
-        session.completion_percentage = 100
-        session.status = SessionStatus.READY_TO_DRAFT
-        session.phase = Phase.TWO
         session.interview_form = form
         session.inline_notice = None
 
+        if is_supplementary_form:
+            session.metadata["supplementary_state"] = "completed"
+            session.flags.missing_fields = []
+            session.completion_percentage = 100
+            return self._finalize_ready_for_draft(
+                session,
+                reply=(
+                    "تم حفظ البيانات الإضافية بنجاح. "
+                    "يمكنك الآن اختيار صيغة الصحيفة والانتقال "
+                    "إلى الصياغة."
+                ),
+            )
+
+        session.flags.missing_fields = []
+        session.completion_percentage = 100
+        return self._build_enrichment_offer_result(session)
+
+    async def handle_enrichment_decision(
+        self, session: Session, action: str,
+    ) -> AgentTurnResult:
+        normalized_action = (action or "").strip().lower()
+        if normalized_action == "skip":
+            session.metadata["supplementary_state"] = "skipped"
+            return self._finalize_ready_for_draft(
+                session,
+                reply=(
+                    "تم التخطي. ننتقل الآن إلى اختيار صيغة "
+                    "الصحيفة ثم بدء الصياغة."
+                ),
+            )
+
+        supplementary_form = self._build_supplementary_form()
+        session.status = SessionStatus.INTERVIEW
+        session.phase = Phase.ONE
+        session.metadata["supplementary_state"] = "collecting"
+        session.interview_form = supplementary_form
+        session.inline_notice = InlineNotice(
+            tone="info",
+            icon="ℹ️",
+            title="بيانات إضافية اختيارية",
+            message=(
+                "يمكنك تعبئة البيانات الاختيارية المتاحة الآن، "
+                "أو ترك أي حقل والانتقال مباشرة."
+            ),
+            aria_label="تنبيه: هذه البيانات اختيارية وغير مانعة للمتابعة.",
+        )
         return AgentTurnResult(
             reply=(
-                "اكتملت البيانات المطلوبة. يمكنك الآن "
-                "اختيار صيغة صحيفة الدعوى ثم بدء الصياغة."
+                "ممتاز. هذه خطوة اختيارية لتحسين جودة الصحيفة "
+                "قبل الصياغة النهائية."
             ),
-            next_action="go_to_phase2",
-            interview_form=form,
+            next_action="fill_supplementary_form",
+            interview_form=supplementary_form,
+            inline_notice=session.inline_notice,
+            metadata=self._intake_field_groups_metadata(),
         )
 
     # ── Form builder ─────────────────────────────────────
+
+    def _build_enrichment_offer_result(
+        self, session: Session,
+    ) -> AgentTurnResult:
+        session.status = SessionStatus.INTERVIEW
+        session.phase = Phase.ONE
+        session.metadata["supplementary_state"] = "awaiting_decision"
+        session.inline_notice = InlineNotice(
+            tone="info",
+            icon="ℹ️",
+            title="بيانات إضافية اختيارية",
+            message=(
+                "اكتملت البيانات الأساسية. يمكنك إضافة "
+                "معلومات اختيارية لتحسين الصحيفة قبل "
+                "الصياغة النهائية، أو المتابعة مباشرة."
+            ),
+            aria_label=(
+                "تنبيه: خطوة بيانات إضافية اختيارية قبل الصياغة."
+            ),
+        )
+        return AgentTurnResult(
+            reply=(
+                "اكتملت البيانات الأساسية. إذا رغبت، يمكنك "
+                "إضافة بيانات اختيارية الآن لتحسين الصياغة."
+            ),
+            next_action="offer_optional_enrichment",
+            inline_notice=session.inline_notice,
+            metadata=self._intake_field_groups_metadata(),
+        )
+
+    def _finalize_ready_for_draft(
+        self, session: Session, *, reply: str,
+    ) -> AgentTurnResult:
+        session.status = SessionStatus.READY_TO_DRAFT
+        session.phase = Phase.TWO
+        session.completion_percentage = 100
+        session.flags.missing_fields = []
+        session.inline_notice = None
+        session.metadata.pop("current_field", None)
+        return AgentTurnResult(
+            reply=reply,
+            next_action="go_to_phase2",
+            metadata=self._intake_field_groups_metadata(),
+        )
+
+    def _build_supplementary_form(self) -> InterviewForm:
+        fields: list[InterviewField] = []
+        for field in SUPPLEMENTARY_OPTIONAL_FIELDS:
+            fields.append(
+                InterviewField(
+                    key=field["key"],
+                    label=field["label"],
+                    hint=field["hint"],
+                    placeholder=field["placeholder"],
+                    aria_label=f"حقل اختياري: {field['label']}",
+                    input_type=field["input_type"],  # type: ignore[arg-type]
+                    group_id=field["group_id"],
+                    group_label=field["group_label"],
+                    required=False,
+                    source="agent",
+                    collection_group="supplementary_optional",
+                )
+            )
+        return InterviewForm(
+            title="بيانات إضافية اختيارية",
+            description=(
+                "هذه الحقول اختيارية بالكامل. يمكنك تعبئة ما "
+                "يتوفر لديك لتحسين جودة الصحيفة."
+            ),
+            submit_label="حفظ البيانات الإضافية والمتابعة",
+            variant="supplementary_optional",
+            helper_text=(
+                "البيانات الأساسية مكتملة. أي تفاصيل إضافية هنا "
+                "تساعد على صياغة أدق، ويمكن تجاوزها."
+            ),
+            fields=fields,
+            support_items=[],
+        )
+
+    @staticmethod
+    def _intake_field_groups_metadata() -> dict[str, list[str]]:
+        return {
+            "core_required": [
+                "بيانات المدعي",
+                "بيانات المدعى عليه",
+                "وصف الطلب الأساسي",
+                "الوقائع الجوهرية",
+                "التواريخ الجوهرية",
+                "المستندات المتاحة",
+            ],
+            "supplementary_optional": [
+                field["label"] for field in SUPPLEMENTARY_OPTIONAL_FIELDS
+            ],
+            "generated_later": list(GENERATED_LATER_FIELDS),
+        }
 
     def _build_interview_form(
         self, case: ClassificationNode | None,
@@ -255,6 +488,7 @@ class StructuredInterviewerService:
                     "التصنيف حالياً."
                 ),
                 submit_label="اعتماد البيانات والمتابعة",
+                variant="core_required",
             )
 
         fields: list[InterviewField] = []
@@ -280,19 +514,24 @@ class StructuredInterviewerService:
                     placeholder=self._placeholder_for_field(
                         item.name, input_type,
                     ),
-                    aria_label=f"حقل إلزامي: {item.name}",
+                    aria_label=f"حقل أساسي: {item.name}",
                     input_type=input_type,
                     group_id=group_id,
                     group_label=group_label,
                     required=item.required,
+                    collection_group=(
+                        "core_required"
+                        if item.required
+                        else "supplementary_optional"
+                    ),
                     options=self._options_for_field(
                         item.name, input_type,
                     ),
                 )
             )
             req_label = (
-                "حقل إلزامي يجب تعبئته قبل الانتقال "
-                "إلى الصياغة."
+                "بيان أساسي يُستحسن إدخاله في هذه "
+                "المرحلة لضمان اكتمال الصحيفة."
                 if item.required
                 else "حقل إضافي مرتبط بهذا النوع من "
                 "الدعاوى."
@@ -322,7 +561,7 @@ class StructuredInterviewerService:
             case.requirements.attachments, start=1,
         ):
             att_label = (
-                "مرفق إلزامي لهذا النوع من الدعاوى."
+                "مرفق أساسي لهذا النوع من الدعاوى."
                 if item.required
                 else "مرفق داعم يمكن إرفاقه عند الحاجة."
             )
@@ -370,6 +609,7 @@ class StructuredInterviewerService:
                         group_label="المرفقات والأسانيد",
                         required=True,
                         source="agent",
+                        collection_group="core_required",
                         badge_label="سؤال إضافي",
                         options=[
                             InterviewFieldOption(
@@ -443,11 +683,17 @@ class StructuredInterviewerService:
             InterviewForm(
                 title="نموذج بيانات الدعوى",
                 description=(
-                    "أكمل جميع الحقول الإلزامية الخاصة "
-                    f"بدعوى {case.title} قبل الانتقال "
-                    "إلى الصياغة."
+                    "أكمل البيانات الأساسية الخاصة "
+                    f"بدعوى {case.title}، ثم يمكنك "
+                    "المتابعة مباشرة. البيانات الإضافية "
+                    "تبقى اختيارية."
                 ),
                 submit_label="اعتماد البيانات والمتابعة",
+                variant="core_required",
+                helper_text=(
+                    "يركّز هذا النموذج على البيانات "
+                    "الأساسية المطلوبة للصياغة."
+                ),
                 fields=fields,
                 support_items=support_items,
             )
@@ -580,7 +826,7 @@ class StructuredInterviewerService:
         for field in form.fields:
             value = values.get(field.key, "").strip()
             if field.required and not value:
-                errors[field.key] = "هذا الحقل إلزامي."
+                errors[field.key] = "يرجى إكمال هذا الحقل."
                 continue
             if (
                 field.input_type == "date"

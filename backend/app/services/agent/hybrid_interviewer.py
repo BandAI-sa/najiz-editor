@@ -52,3 +52,14 @@ class HybridInterviewerService:
         return await self.structured.submit_form(
             session, values,
         )
+
+    async def handle_enrichment_decision(
+        self, session: Session, action: str,
+    ) -> AgentTurnResult:
+        if session.intake_mode == IntakeMode.STRUCTURED:
+            return await self.structured.handle_enrichment_decision(
+                session, action,
+            )
+        return await self.smart.handle_enrichment_decision(
+            session, action,
+        )

@@ -97,6 +97,9 @@ class InterviewField(BaseSchema):
     group_label: str
     required: bool = True
     source: Literal["authentic", "agent"] = "authentic"
+    collection_group: Literal[
+        "core_required", "supplementary_optional", "generated_later"
+    ] = "core_required"
     badge_label: str | None = None
     options: list[InterviewFieldOption] = Field(
         default_factory=list,
@@ -116,6 +119,10 @@ class InterviewForm(BaseSchema):
     title: str
     description: str
     submit_label: str
+    variant: Literal[
+        "core_required", "supplementary_optional"
+    ] = "core_required"
+    helper_text: str = ""
     fields: list[InterviewField] = Field(default_factory=list)
     support_items: list[InterviewSupportItem] = Field(
         default_factory=list,

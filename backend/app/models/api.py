@@ -77,6 +77,10 @@ class UpdateIntakeModeRequest(BaseSchema):
     mode: str
 
 
+class EnrichmentDecisionRequest(BaseSchema):
+    action: Literal["add", "skip"]
+
+
 class AgentMessageRequest(BaseSchema):
     session_id: str | None = None
     message: str

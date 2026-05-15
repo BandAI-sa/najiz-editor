@@ -4,6 +4,7 @@ from app.core.exceptions import NajizError, SessionNotFoundError
 from app.models.api import (
     AgentResponse,
     CreateSessionResponse,
+    EnrichmentDecisionRequest,
     InterviewFormSubmissionRequest,
     SessionResponse,
     UpdateClassificationRequest,
@@ -56,8 +57,9 @@ async def update_classification(
     session.classification = selection
     session.status = SessionStatus.INTERVIEW
     session.metadata["pending_prompt"] = (
-        "تم اعتماد التصنيف. اختر طريقة إدخال البيانات للمتابعة."
+        "تم اعتماد التصنيف بنجاح. اختر طريقة إدخال البيانات المناسبة لك."
     )
+    session.metadata["pending_next_action"] = "select_intake_mode"
     await deps["session_repo"].save(session)
     return SessionResponse(session=session)
 
@@ -131,7 +133,50 @@ async def update_intake_mode(
                 session,
             )
         session.metadata["pending_prompt"] = result.reply
+        session.metadata["pending_next_action"] = result.next_action
 
     await deps["session_repo"].save(session)
     return SessionResponse(session=session)
+
+
+@router.patch(
+    "/{session_id}/optional-enrichment",
+    response_model=AgentResponse,
+)
+async def decide_optional_enrichment(
+    session_id: str,
+    payload: EnrichmentDecisionRequest,
+    request: Request,
+) -> AgentResponse:
+    deps = build_dependencies(request)
+    session = await deps["session_repo"].get_by_id(session_id)
+    if session is None:
+        raise SessionNotFoundError(session_id)
+
+    result = await deps["interviewer"].handle_enrichment_decision(
+        session, payload.action,
+    )
+    await deps["session_repo"].save(session)
+    return AgentResponse(
+        session_id=session.session_id,
+        reply=result.reply,
+        phase=int(session.phase),
+        session_status=session.status,
+        completion_percentage=session.completion_percentage,
+        extracted_data=session.extracted_data,
+        flags=session.flags,
+        next_action=result.next_action,
+        metadata=result.metadata,
+        suggestions=result.suggestions,
+        classification=session.classification,
+        interview_form=(
+            result.interview_form or session.interview_form
+        ),
+        inline_notice=(
+            result.inline_notice or session.inline_notice
+        ),
+        intake_mode=session.intake_mode,
+        petition=result.petition,
+        review_report=result.review,
+    )
 
