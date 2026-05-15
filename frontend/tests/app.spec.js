@@ -555,9 +555,8 @@ async function chooseLLMConfig(page) {
 
   await page.getByRole("button", { name: "OpenAI" }).click();
   await page.locator("#llm-config-save-btn").click();
-  await expect(page.locator("#llm-config-overlay")).toBeHidden();
-  await expect(page.locator("#llm-status-bar")).toBeVisible();
-  await expect(page.locator("#main-select option")).toHaveCount(2);
+  await expect(page.locator("#message-input")).toBeEnabled();
+  await expect(page.locator("#send-btn")).toBeEnabled();
 }
 
 test.beforeEach(async ({ page }) => {

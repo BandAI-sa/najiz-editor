@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 async function chooseLLMConfig(page) {
   await expect(page.locator("#llm-config-overlay")).toBeVisible();
   await page.locator("#llm-config-save-btn").click();
-  await expect(page.locator("#llm-config-overlay")).toBeHidden();
+  await expect(page.locator("#message-input")).toBeEnabled();
+  await expect(page.locator("#send-btn")).toBeEnabled();
 }
 
 function mockMainApi(page) {
