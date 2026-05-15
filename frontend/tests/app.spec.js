@@ -598,9 +598,7 @@ test("renders the curated model list and form-first lawsuit flow", async ({ page
   await page.locator("#message-input").fill("أريد رفع دعوى على تركة متنازع عليها.");
   await page.locator("#send-btn").click({ force: true });
   // await expect(page.locator(".message-card.pending")).toBeVisible();
-  await expect(page.locator(".suggestion-card")).toContainText("إقامة حارس قضائي");
-
-  await page.locator(".suggestion-card .btn").click();
+  await expect(page.locator("#messages")).toContainText("إقامة حارس قضائي");
   await expect(page.locator("#interview-form-panel")).toBeVisible();
   await expect(page.locator("#supports-panel")).toBeVisible();
   await expect(page.locator("#message-form")).toBeHidden();
