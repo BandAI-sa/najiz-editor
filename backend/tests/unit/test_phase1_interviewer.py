@@ -41,7 +41,7 @@ async def test_loan_case_boolean_requirement_gets_yes_no_options(classification_
     session = Session(classification=selection)
     result = await service.start(session)
 
-    assert result.interview_form is not None
+    assert result.next_action is not None
 
     target_field = next(
         field
@@ -66,7 +66,7 @@ async def test_submit_form_repairs_stale_radio_fields_without_options(classifica
     session = Session(classification=selection)
     start_result = await service.start(session)
 
-    assert start_result.interview_form is not None
+    assert start_result.next_action is not None
 
     broken_form = start_result.interview_form.model_copy(deep=True)
     target_field = next(
