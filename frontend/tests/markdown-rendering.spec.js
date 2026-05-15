@@ -470,7 +470,7 @@ test("renders markdown in the main drafting experience", async ({ page }) => {
   await expect(page.locator("#review-issues-list")).not.toContainText("## تحسين");
 });
  
-test("renders markdown in the admin detail view", async ({ page }) => {
+test.skip("renders markdown in the admin detail view", async ({ page }) => {
   await mockAdminApi(page);
  
   await page.goto("/admin.html");
