@@ -285,7 +285,7 @@ function mockApi(page, formFixture = interviewForm) {
         contentType: "application/json",
         body: JSON.stringify({
           session_id: "session-1",
-          reply: "اكتملت البيانات المطلوبة. يمكنك الآن اختيار ص��غة صحيفة الدعوى ثم بدء الصياغة.",
+          reply: "اكتملت البيانات المطلوبة. يمكنك الآن اختيار صيغة صحيفة الدعوى ثم بدء الصياغة.",
           phase: 2,
           session_status: "READY_TO_DRAFT",
           completion_percentage: 100,
@@ -320,7 +320,7 @@ function mockApi(page, formFixture = interviewForm) {
           contentType: "application/json",
           body: JSON.stringify({
             session_id: "session-1",
-            reply: "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول ط�[...]",
+            reply: "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول طبيع[...]",
             phase: 1,
             session_status: "NEW",
             completion_percentage: 0,
@@ -341,7 +341,7 @@ function mockApi(page, formFixture = interviewForm) {
               icon: "⚠️",
               title: "البيانات الحالية غير كافية لتحديد نوع الدعوى",
               message:
-                "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول طبي[...]",
+                "لم نتمكن من تحديد نوع ورقة الدعوى بناءً على المعلومات المدخلة. يرجى تقديم مزيد من التفاصيل حول طبيعة [...]",
               aria_label: "تنبيه: تعذر تصنيف نوع الدعوى لعدم كفاية التفاصيل.",
             },
           }),
@@ -370,7 +370,7 @@ function mockApi(page, formFixture = interviewForm) {
             metadata: {},
             suggestions: [],
             classification: {
-              case_path: ["أحوال شخصية", "التصنيف العام", "إقامة حارس قضائي"],
+              case_path: ["أحوال شخصية", "التصني�� العام", "إقامة حارس قضائي"],
             },
             interview_form: form,
             inline_notice: null,
@@ -542,8 +542,18 @@ function mockApi(page, formFixture = interviewForm) {
 
 async function waitForLLMOverlayToClose(page) {
   const overlay = page.locator("#llm-config-overlay");
+
+  // Ensure the overlay is no longer visible.
   await overlay.waitFor({ state: "hidden" });
   await expect(overlay).toBeHidden();
+
+  // If the overlay stays mounted, it should be aria-hidden.
+  await expect(overlay).toHaveAttribute("aria-hidden", "true");
+
+  // And it must not be able to intercept pointer events.
+  await expect.poll(async () => {
+    return overlay.evaluate((el) => getComputedStyle(el).pointerEvents);
+  }).toBe("none");
 }
 
 async function chooseLLMConfig(page) {
@@ -587,6 +597,9 @@ test("renders the curated model list and form-first lawsuit flow", async ({ page
 
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
   await expect(page.locator("#messages")).toContainText("مرحبًا");
+
+  // Guard: ensure overlay is not intercepting pointer events before clicking send.
+  await waitForLLMOverlayToClose(page);
 
   await page.locator("#message-input").fill("أريد رفع دعوى على تركة متنازع عليها.");
   await page.locator("#send-btn").click();
@@ -656,6 +669,9 @@ test("shows an inline ambiguity warning and keeps discovery chat active", async 
   await page.goto("/");
   await chooseLLMConfig(page);
 
+  // Guard: ensure overlay is not intercepting pointer events before clicking send.
+  await waitForLLMOverlayToClose(page);
+
   await page.locator("#message-input").fill("وصف غامض");
   await page.locator("#send-btn").click();
 
@@ -673,7 +689,7 @@ test("supports manual classification on mobile and switches directly to form mod
   await page.goto("/");
   await chooseLLMConfig(page);
 
-  // Extra safety: ensure overlay is not intercepting events before interacting with selects.
+  // Guard: ensure overlay is not intercepting pointer events before interacting with selects.
   await waitForLLMOverlayToClose(page);
 
   await page.locator("#main-select").selectOption("main-01");
@@ -710,6 +726,10 @@ test("renders yes-no controls even when a boolean field arrives without options"
 
   await page.goto("/");
   await chooseLLMConfig(page);
+
+  // Guard: ensure overlay is not intercepting pointer events before clicking send.
+  await waitForLLMOverlayToClose(page);
+
   await page.locator("#message-input").fill("أريد رفع دعوى على تركة متنازع عليها.");
   await page.locator("#send-btn").click();
   await page.locator(".suggestion-card .btn").click();
