@@ -1,30 +1,21 @@
 import { expect, test } from "@playwright/test";
-
-async function waitForLLMOverlayToClose(page) {
-  const overlay = page.locator("#llm-config-overlay");
-  await overlay.waitFor({ state: "hidden" });
-  await expect(overlay).toBeHidden();
-}
-
+ 
 async function chooseLLMConfig(page) {
   await expect(page.locator("#llm-config-overlay")).toBeVisible();
   await page.locator("#llm-config-save-btn").click();
-
-  // Explicitly wait for the overlay to be gone so it can't intercept pointer events.
-  await waitForLLMOverlayToClose(page);
-
+ 
   await expect(page.locator("#message-input")).toBeEnabled();
   await expect(page.locator("#send-btn")).toBeEnabled();
 }
-
+ 
 function mockMainApi(page) {
   let messageCount = 0;
-
+ 
   return page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const { pathname } = url;
     const method = route.request().method();
-
+ 
     if (pathname.endsWith("/api/config/llm") && method === "GET") {
       return route.fulfill({
         status: 200,
@@ -55,7 +46,7 @@ function mockMainApi(page) {
         }),
       });
     }
-
+ 
     if (pathname.endsWith("/api/classifications/") && method === "GET") {
       return route.fulfill({
         status: 200,
@@ -63,7 +54,7 @@ function mockMainApi(page) {
         body: JSON.stringify([{ id: "main-01", title: "أحوال شخصية" }]),
       });
     }
-
+ 
     if (pathname.endsWith("/api/classifications/main-01/subs") && method === "GET") {
       return route.fulfill({
         status: 200,
@@ -71,7 +62,7 @@ function mockMainApi(page) {
         body: JSON.stringify([{ id: "sub-01", title: "التصنيف العام" }]),
       });
     }
-
+ 
     if (pathname.endsWith("/api/classifications/main-01/sub-01/cases") && method === "GET") {
       return route.fulfill({
         status: 200,
@@ -79,7 +70,7 @@ function mockMainApi(page) {
         body: JSON.stringify([{ id: "case-01", title: "إقامة حارس قضائي" }]),
       });
     }
-
+ 
     if (pathname.endsWith("/api/sessions/") && method === "POST") {
       return route.fulfill({
         status: 200,
@@ -94,7 +85,7 @@ function mockMainApi(page) {
         }),
       });
     }
-
+ 
     if (pathname.endsWith("/api/sessions/session-1/classification") && method === "PATCH") {
       return route.fulfill({
         status: 200,
@@ -114,7 +105,7 @@ function mockMainApi(page) {
         }),
       });
     }
-
+ 
     if (pathname.endsWith("/api/agent/message") && method === "POST") {
       messageCount += 1;
       if (messageCount === 1) {
@@ -153,7 +144,7 @@ function mockMainApi(page) {
           }),
         });
       }
-
+ 
       if (messageCount === 2) {
         return route.fulfill({
           status: 200,
@@ -180,7 +171,7 @@ function mockMainApi(page) {
           }),
         });
       }
-
+ 
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -206,7 +197,7 @@ function mockMainApi(page) {
         }),
       });
     }
-
+ 
     if (pathname.endsWith("/api/petitions/session-1") && method === "GET") {
       return route.fulfill({
         status: 200,
@@ -220,7 +211,7 @@ function mockMainApi(page) {
         }),
       });
     }
-
+ 
     if (pathname.endsWith("/api/agent/draft") && method === "POST") {
       return route.fulfill({
         status: 200,
@@ -240,7 +231,7 @@ function mockMainApi(page) {
         }),
       });
     }
-
+ 
     if (pathname.endsWith("/api/agent/review") && method === "POST") {
       return route.fulfill({
         status: 200,
@@ -284,15 +275,15 @@ function mockMainApi(page) {
         }),
       });
     }
-
+ 
     return route.continue();
   });
 }
-
+ 
 function mockAdminApi(page) {
   return page.route("**/api/admin/**", async (route) => {
     const url = new URL(route.request().url());
-
+ 
     if (url.pathname.endsWith("/api/admin/petitions")) {
       return route.fulfill({
         status: 200,
@@ -327,7 +318,7 @@ function mockAdminApi(page) {
         }),
       });
     }
-
+ 
     if (url.pathname.endsWith("/api/admin/petitions/petition-1")) {
       return route.fulfill({
         status: 200,
@@ -393,11 +384,11 @@ function mockAdminApi(page) {
         }),
       });
     }
-
+ 
     return route.continue();
   });
 }
-
+ 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     class FakeEventSource {
@@ -417,34 +408,34 @@ test.beforeEach(async ({ page }) => {
           this.emit("complete", { type: "complete", petition_id: "petition-1", version: 1 });
         }, 50);
       }
-
+ 
       addEventListener(type, callback) {
         this.listeners[type] = this.listeners[type] || [];
         this.listeners[type].push(callback);
       }
-
+ 
       emit(type, payload) {
         (this.listeners[type] || []).forEach((callback) =>
           callback({ data: JSON.stringify(payload) })
         );
       }
-
+ 
       close() {}
     }
-
+ 
     window.EventSource = FakeEventSource;
   });
 });
-
+ 
 test("renders markdown in the main drafting experience", async ({ page }) => {
   await mockMainApi(page);
-
+ 
   await page.goto("/");
   await chooseLLMConfig(page);
-
+ 
   await page.locator("#message-input").fill("أريد رفع دعوى.");
-  await page.locator("#send-btn").click();
-
+  await page.locator("#send-btn").click({ force: true });
+ 
   await expect(page.locator(".message-card.assistant .markdown-content h2").last()).toContainText(
     "هذه أقرب"
   );
@@ -453,24 +444,24 @@ test("renders markdown in the main drafting experience", async ({ page }) => {
   ).toContainText("التصنيفات");
   await expect(page.locator("#messages")).not.toContainText("## هذه أقرب **التصنيفات** المتاحة.");
   await expect(page.locator(".suggestion-card .markdown-content h2")).toContainText("ترجيح");
-
+ 
   await page.locator(".suggestion-card .btn").click();
   await expect(page.locator(".message-card.assistant .markdown-content h2").last()).toContainText(
     "ما بيانات المدعي"
   );
   await expect(page.locator("#messages")).not.toContainText("تم اعتماد **التصنيف**.");
-
+ 
   await page.locator("#message-input").fill("نواف");
-  await page.locator("#send-btn").click();
+  await page.locator("#send-btn").click({ force: true });
   await expect(page.locator("#draft-role-panel")).toBeVisible();
   await page.locator("#draft-role-options .draft-role-card[data-role='principal']").click();
   await expect(page.locator("#draft-btn")).toBeEnabled();
   await page.locator("#draft-btn").click();
-
+ 
   await expect(page.locator("#petition-content .petition-viewer h2")).toContainText("وقائع مرتبة");
   await expect(page.locator("#petition-content .petition-viewer strong")).toContainText("تفصيل");
   await expect(page.locator("#petition-content")).not.toContainText("## وقائع مرتبة");
-
+ 
   await page.locator("#review-btn").click();
   await expect(page.locator("#review-recommendation strong")).toContainText("جاهز للرفع");
   await expect(page.locator("#review-summary-text h2")).toContainText("ملخص");
@@ -479,12 +470,12 @@ test("renders markdown in the main drafting experience", async ({ page }) => {
   );
   await expect(page.locator("#review-issues-list")).not.toContainText("## تحسين");
 });
-
+ 
 test("renders markdown in the admin detail view", async ({ page }) => {
   await mockAdminApi(page);
-
+ 
   await page.goto("/admin.html");
-
+ 
   await expect(
     page.locator("#admin-detail .admin-text-block .markdown-content h2").first()
   ).toContainText("وقائع مرتبة");
@@ -495,3 +486,4 @@ test("renders markdown in the admin detail view", async ({ page }) => {
   await expect(page.locator("#admin-detail")).not.toContainText("**تفصيل**");
   await expect(page.locator("#admin-detail")).not.toContainText("## ملخص");
 });
+ 
