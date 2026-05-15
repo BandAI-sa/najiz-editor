@@ -23,7 +23,7 @@ services:
     restart: always
 
   mongo:
-    image: mongo:5
+    image: mongo:6
     platform: linux/amd64
     container_name: najiz-mongo
     ports:
